@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<link rel="icon" href="/favicon.ico">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>DeBrief</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&display=swap');
@@ -73,20 +73,28 @@
   .logo span { color: var(--accent); }
   .date-badge { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
 
-  /* ── TABS ── */
-  .tabs-wrap {
-    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  /* ── TAB BAR ONDERAAN ── */
+  .tab-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: stretch;
+    padding-bottom: var(--safe-bottom);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   }
-  .tabs-wrap::-webkit-scrollbar { display: none; }
-  .tabs { display: flex; width: max-content; }
   .tab {
-    font-size: 13px; font-weight: 500; letter-spacing: .03em;
-    padding: 9px 16px; border: none; background: none; color: var(--ink-muted);
-    cursor: pointer; border-bottom: 2px solid transparent;
-    transition: color .15s, border-color .15s; white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px;
+    padding: 8px 2px; border: none; background: none;
+    color: var(--ink-faint); font-size: 9px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: color .15s; white-space: nowrap; min-width: 0;
   }
-  .tab.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .tab.active { color: var(--accent); }
+  .tab.active svg { stroke-width: 2.4; }
 
   /* ── SOURCE ROW ── */
   .source-row-wrap {
@@ -105,7 +113,7 @@
   .source-chip.active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 
   /* ── FEED ── */
-  .feed { padding: 20px 16px calc(var(--safe-bottom) + 88px); max-width: 680px; margin: 0 auto; }
+  .feed { padding: 20px 16px calc(var(--safe-bottom) + 80px); max-width: 680px; margin: 0 auto; }
 
   /* ── STATUS ── */
   .status-screen {
@@ -206,17 +214,18 @@
     transition: width .25s ease;
   }
 
-  /* ── REFRESH BTN ── */
-  .refresh-btn {
-    position: fixed; bottom: calc(var(--safe-bottom) + 24px); right: 20px;
-    width: 48px; height: 48px; border-radius: 50%;
-    background: var(--ink); color: #fff; border: none;
+  /* ── PULL TO REFRESH ── */
+  .ptr-indicator {
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 16px rgba(0,0,0,.2); cursor: pointer; z-index: 200;
-    -webkit-tap-highlight-color: transparent; transition: transform .15s, background .15s;
+    height: 0; overflow: hidden; transition: height .2s ease;
+    color: var(--ink-muted); font-size: 12px; gap: 8px;
   }
-  .refresh-btn:active { transform: scale(.92); background: var(--accent); }
-  .refresh-btn.spinning svg { animation: spin .8s linear infinite; }
+  .ptr-indicator.visible { height: 48px; }
+  .ptr-spinner {
+    width: 18px; height: 18px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+  }
+  .ptr-spinner.spinning { animation: spin .8s linear infinite; }
 
   /* ── ERROR ── */
   .error-banner {
@@ -250,6 +259,7 @@
     }
     .article-card-placeholder { background: linear-gradient(135deg,#2A2720 0%,#1E1C18 100%); }
     .source-chip.active { background: var(--ink); color: var(--bg); }
+    .tab-bar { background: rgba(32,30,24,.92); }
   }
 
   /* ── ARTICLE POPUP ── */
@@ -322,22 +332,10 @@
 
 <div class="progress-bar" id="progressBar"></div>
 
-<div class="header">
+<div class="header" id="headerBar">
   <div class="header-top">
     <div class="logo">De<span>Brief</span></div>
     <div class="date-badge" id="dateBadge"></div>
-  </div>
-  <!-- Category tabs -->
-  <div class="tabs-wrap">
-    <div class="tabs" id="catTabs">
-      <button class="tab active" data-tab="alles">Alles</button>
-      <button class="tab" data-tab="binnenland">Binnenland</button>
-      <button class="tab" data-tab="buitenland">Buitenland</button>
-      <button class="tab" data-tab="politiek">Politiek</button>
-      <button class="tab" data-tab="economie">Economie</button>
-      <button class="tab" data-tab="opinie">Opinie</button>
-      <button class="tab" data-tab="overig">Overige</button>
-    </div>
   </div>
   <!-- Source filter chips -->
   <div class="source-row-wrap">
@@ -358,13 +356,37 @@
   </div>
 </div>
 
-<button class="refresh-btn" id="refreshBtn" title="Vernieuwen">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <polyline points="23 4 23 10 17 10"/>
-    <polyline points="1 20 1 14 7 14"/>
-    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-  </svg>
-</button>
+<div class="ptr-indicator" id="ptrIndicator">
+  <div class="ptr-spinner" id="ptrSpinner"></div>
+  <span id="ptrText">Loslaten om te verversen</span>
+</div>
+
+<nav class="tab-bar" id="catTabs">
+  <button class="tab active" data-tab="alles">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Alles
+  </button>
+  <button class="tab" data-tab="binnenland">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Binnenland
+  </button>
+  <button class="tab" data-tab="buitenland">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+    Buitenland
+  </button>
+  <button class="tab" data-tab="politiek">
+    <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    Politiek
+  </button>
+  <button class="tab" data-tab="economie">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    Economie
+  </button>
+  <button class="tab" data-tab="opinie">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Opinie
+  </button>
+</nav>
 
 
 <div class="popup-overlay" id="popupOverlay"></div>
@@ -381,7 +403,7 @@
 </div>
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────────
-const RSS2JSON_BASE = 'https://api.rss2json.com/v1/api.json?api_key=goxrkjvrqv2dqaaj0mybmnl0vyjxhqccxlh906cv&count=100&rss_url=';
+const RSS2JSON_BASE = '/api/rss?url='; // API key zit veilig in Vercel environment variable
 
 // Sources with translate flag for non-Dutch outlets
 const SOURCES = [
@@ -879,13 +901,10 @@ function render(errors=[]) {
 document.getElementById('dateBadge').textContent = formatDate();
 
 async function init() {
-  const btn = document.getElementById('refreshBtn');
-  btn.classList.add('spinning');
   document.getElementById('feedContainer').innerHTML = `
     <div class="status-screen"><div class="spinner"></div><div class="load-msg">Nieuws ophalen\u2026</div></div>`;
 
   const errors = await loadAll();
-  btn.classList.remove('spinning');
 
   if (!allArticles.length) {
     document.getElementById('feedContainer').innerHTML = `
@@ -907,6 +926,11 @@ document.getElementById('feedContainer').addEventListener('click', e => {
   if (art) openPopup(art);
 });
 
+// Scroll to top bij klik op header
+document.getElementById('headerBar').addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
 document.getElementById('catTabs').addEventListener('click', e => {
   const b = e.target.closest('.tab'); if (!b) return;
   document.querySelectorAll('#catTabs .tab').forEach(t => t.classList.remove('active'));
@@ -923,7 +947,50 @@ document.getElementById('sourceRow').addEventListener('click', e => {
   render();
 });
 
-document.getElementById('refreshBtn').addEventListener('click', init);
+// ── PULL TO REFRESH ──────────────────────────────────────────────────────────
+let ptrStartY = 0, ptrActive = false, ptrTriggered = false;
+const ptrIndicator = document.getElementById('ptrIndicator');
+const ptrSpinner   = document.getElementById('ptrSpinner');
+const ptrText      = document.getElementById('ptrText');
+const THRESHOLD    = 80;
+
+document.addEventListener('touchstart', e => {
+  if (window.scrollY === 0) {
+    ptrStartY = e.touches[0].clientY;
+    ptrActive = true;
+    ptrTriggered = false;
+  }
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!ptrActive) return;
+  const dist = e.touches[0].clientY - ptrStartY;
+  if (dist > 10) {
+    ptrIndicator.classList.add('visible');
+    if (dist > THRESHOLD) {
+      ptrText.textContent = 'Loslaten om te verversen';
+      ptrTriggered = true;
+    } else {
+      ptrText.textContent = 'Trek naar beneden om te verversen';
+      ptrTriggered = false;
+    }
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (ptrTriggered) {
+    ptrSpinner.classList.add('spinning');
+    ptrText.textContent = 'Verversen…';
+    init().then(() => {
+      ptrSpinner.classList.remove('spinning');
+      ptrIndicator.classList.remove('visible');
+    });
+  } else {
+    ptrIndicator.classList.remove('visible');
+  }
+  ptrActive = false;
+  ptrTriggered = false;
+});
 
 init();
 
