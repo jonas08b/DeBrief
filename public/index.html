@@ -709,58 +709,61 @@ function geminiCacheGet(title) {
     const entry = cache[title];
     if (!entry) return null;
     if (Date.now() - entry.ts > GEMINI_CACHE_TTL) return null;
-    return entry.cat;
+    return entry.data || null;
   } catch { return null; }
 }
 
 function geminiCacheSet(entries) {
-  // entries = [{ title, cat }]
+  // entries = [{ title, data: { cat, nl? } }]
   try {
     const raw = sessionStorage.getItem(GEMINI_CACHE_KEY);
     const cache = raw ? JSON.parse(raw) : {};
     const now = Date.now();
-    // Verwijder verlopen entries
     for (const k of Object.keys(cache)) {
       if (now - cache[k].ts > GEMINI_CACHE_TTL) delete cache[k];
     }
-    for (const { title, cat } of entries) {
-      cache[title] = { cat, ts: now };
+    for (const { title, data } of entries) {
+      cache[title] = { data, ts: now };
     }
     sessionStorage.setItem(GEMINI_CACHE_KEY, JSON.stringify(cache));
   } catch {}
 }
 
-async function categoriseWithGemini(articles) {
-  // articles = [{ index, title }]
-  if (!articles.length) return {};
+async function groqProcess(articles) {
+  // articles = [{ index, title, translate }]
+  // Geeft { catMap: {index: cat}, titleMap: {index: nlTitle} }
+  if (!articles.length) return { catMap: {}, titleMap: {} };
 
-  // Splits in gecachede en nieuwe artikels
-  const result = {};
+  const catMap = {}, titleMap = {};
   const uncached = [];
   for (const a of articles) {
     const cached = geminiCacheGet(a.title);
     if (cached !== null) {
-      result[String(a.index)] = cached;
+      catMap[String(a.index)] = cached.cat;
+      if (cached.nl) titleMap[String(a.index)] = cached.nl;
     } else {
       uncached.push(a);
     }
   }
 
-  if (!uncached.length) return result;
+  if (!uncached.length) return { catMap, titleMap };
 
-  const titlesJson = JSON.stringify(uncached.map(a => ({ i: a.index, t: a.title })));
-  const prompt = `Categoriseer elk nieuwsartikel in exact één van deze categorieën: binnenland, buitenland, politiek, economie, opinie, overig.
-- binnenland: nieuws over België (intern, binnenlands)
-- buitenland: internationaal nieuws, buitenlandse gebeurtenissen
-- politiek: politiek, verkiezingen, beleid, regeringen
-- economie: economie, financiën, bedrijven, markten, tech, wetenschap
-- opinie: opiniestukken, commentaar, analyses
-- overig: alles wat niet past
+  const inputJson = JSON.stringify(uncached.map(a => ({ i: a.index, t: a.title, tr: a.translate })));
+  const prompt = `Je krijgt een lijst nieuwsartikels. Voor elk artikel:
+1. Kies een categorie uit: binnenland, buitenland, politiek, economie, opinie, overig
+   - binnenland: nieuws over België intern
+   - buitenland: internationaal nieuws, buitenlandse gebeurtenissen
+   - politiek: politiek, verkiezingen, beleid, regeringen
+   - economie: economie, financiën, bedrijven, markten, tech, wetenschap
+   - opinie: opiniestukken, commentaar, analyses
+   - overig: alles wat niet past
+2. Als "tr" true is: vertaal de titel naar natuurlijk Nederlands. Als "tr" false is: laat "nl" weg.
 
-Geef ALLEEN een JSON-object terug, geen uitleg, geen markdown. Formaat: {"0":"categorie","1":"categorie",...}
-De sleutels zijn de "i"-waarden uit de input.
+Geef ALLEEN een JSON-object terug, geen uitleg, geen markdown.
+Formaat: {"0":{"cat":"categorie","nl":"vertaling"},"1":{"cat":"categorie"},...}
+De sleutels zijn de "i"-waarden.
 
-Artikels: ${titlesJson}`;
+Artikels: ${inputJson}`;
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
@@ -780,15 +783,17 @@ Artikels: ${titlesJson}`;
     const parsed = JSON.parse(clean);
     const toCache = [];
     for (const a of uncached) {
-      const cat = GEMINI_CATS.includes((parsed[String(a.index)]||'').toLowerCase())
-        ? parsed[String(a.index)].toLowerCase() : 'overig';
-      result[String(a.index)] = cat;
-      toCache.push({ title: a.title, cat });
+      const entry = parsed[String(a.index)] || {};
+      const cat = GEMINI_CATS.includes((entry.cat||'').toLowerCase())
+        ? entry.cat.toLowerCase() : 'overig';
+      catMap[String(a.index)] = cat;
+      if (a.translate && entry.nl) titleMap[String(a.index)] = entry.nl;
+      toCache.push({ title: a.title, data: { cat, nl: entry.nl || null } });
     }
     geminiCacheSet(toCache);
   } catch {}
 
-  return result;
+  return { catMap, titleMap };
 }
 
 // ── LOAD ALL ──────────────────────────────────────────────────────────────────
@@ -810,18 +815,24 @@ async function loadAll() {
 
   let arts = settled.flatMap(r => r.status==='fulfilled' ? r.value : []);
 
-  // Groq categorisatie voor VRT en Euronews
-  const geminiArts = arts
-    .map((a, i) => ({ index: i, title: a.title, needsGemini: a.source.id === 'vrt' || a.source.id === 'euronews' }))
-    .filter(a => a.needsGemini);
+  // Groq: categorisatie (VRT + Euronews) + vertaling (WSJ + Euronews)
+  const groqArts = arts
+    .map((a, i) => ({
+      index: i,
+      title: a.title,
+      needsGroq: ['vrt','euronews','wsj'].includes(a.source.id),
+      translate: ['euronews','wsj'].includes(a.source.id)
+    }))
+    .filter(a => a.needsGroq);
 
-  if (geminiArts.length) {
+  if (groqArts.length) {
     try {
-      const catMap = await categoriseWithGemini(geminiArts);
-      geminiArts.forEach(a => {
-        if (catMap[String(a.index)] !== undefined) {
+      const { catMap, titleMap } = await groqProcess(groqArts);
+      groqArts.forEach(a => {
+        if (catMap[String(a.index)] !== undefined)
           arts[a.index].cat = catMap[String(a.index)];
-        }
+        if (titleMap[String(a.index)])
+          arts[a.index].title = titleMap[String(a.index)];
       });
     } catch(e) {
       errors.push(`Groq: ${e.message}`);
