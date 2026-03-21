@@ -154,8 +154,10 @@
   .section-head h3 {
     font-size: 11px; font-weight: 700; letter-spacing: .1em;
     text-transform: uppercase; color: var(--ink-muted); white-space: nowrap;
+    order: 0;
   }
-  .section-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .section-head::after { content: ''; flex: 1; height: 1px; background: var(--border); order: 1; }
+  .section-head .count-chip { order: 2; }
 
   /* ── ARTICLE CARD ── */
   .article-card {
@@ -349,6 +351,10 @@
   </div>
 </div>
 
+<div class="ptr-indicator" id="ptrIndicator">
+  <div class="ptr-spinner" id="ptrSpinner"></div>
+  <span id="ptrText">Loslaten om te verversen</span>
+</div>
 <div id="feedContainer" class="feed">
   <div class="status-screen">
     <div class="spinner"></div>
@@ -356,10 +362,6 @@
   </div>
 </div>
 
-<div class="ptr-indicator" id="ptrIndicator">
-  <div class="ptr-spinner" id="ptrSpinner"></div>
-  <span id="ptrText">Loslaten om te verversen</span>
-</div>
 
 <nav class="tab-bar" id="catTabs">
   <button class="tab active" data-tab="alles">
@@ -607,7 +609,7 @@ function timeAgo(ds) {
     if (m < 1)    return 'zojuist';
     if (m < 60)   return `${Math.round(m)}m geleden`;
     if (m < 1440) return `${Math.round(m/60)}u geleden`;
-    return new Date(ds).toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'});
+    return new Date(ds).toLocaleDateString('nl-BE',{day:'numeric',month:'short'});
   } catch { return ''; }
 }
 
@@ -662,10 +664,17 @@ function tickProgress() {
   if (_done >= _total) setTimeout(()=>{ bar().style.width='0%'; }, 700);
 }
 
+// ── ABORT SIGNAL POLYFILL ─────────────────────────────────────────────────────
+function timeoutSignal(ms) {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 // ── FETCH ONE FEED ────────────────────────────────────────────────────────────
 async function fetchFeed(url, meta) {
   const api = RSS2JSON_BASE + encodeURIComponent(url);
-  const res  = await fetch(api, { signal: AbortSignal.timeout(10000) });
+  const res  = await fetch(api, { signal: timeoutSignal(10000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (data.status !== 'ok' || !Array.isArray(data.items)) throw new Error(data.message || 'rss2json error');
@@ -774,7 +783,7 @@ Artikels: ${inputJson}`;
       temperature: 0,
       messages: [{ role: 'user', content: prompt }]
     }),
-    signal: AbortSignal.timeout(20000)
+    signal: timeoutSignal(20000)
   });
   if (!res.ok) throw new Error(`Groq HTTP ${res.status}`);
   const data = await res.json();
@@ -896,7 +905,7 @@ function render(errors=[]) {
   html += `</div></div>`;
 
   if (rest.length) {
-    html += `<div class="section-head"><h3>Meer nieuws<span class="count-chip">${rest.length}</span></h3></div>`;
+    html += `<div class="section-head"><h3>Meer nieuws</h3><span class="count-chip">${rest.length}</span></div>`;
   }
 
   for (const art of rest) {
