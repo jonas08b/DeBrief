@@ -207,7 +207,6 @@
   .label-economie{ background: #FFF4E5; color: #8B4500; }
   .label-binnenland{ background: #EBF5EF; color: #1A5C2A; }
   .label-buitenland{ background: #F7F0E8; color: #7B3F00; }
-  .label-opinie    { background: #F5EDE9; color: #C8311A; }
 
   /* ── PROGRESS BAR ── */
   .progress-bar {
@@ -563,10 +562,7 @@
     <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
     Economie
   </button>
-  <button class="tab" data-tab="opinie">
-    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    Opinie
-  </button>
+
   <button class="tab" data-tab="markt" id="marktTab">
     <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
     Markt
@@ -888,7 +884,7 @@ function categorise(title) {
 
 // ── LABELS ───────────────────────────────────────────────────────────────────
 const RL = { be:['label-be','BE'], eu:['label-eu','EU'], world:['label-world','Wereld'] };
-const CL = { politiek:['label-politiek','Politiek'], economie:['label-economie','Economie'], binnenland:['label-binnenland','Binnenland'], buitenland:['label-buitenland','Buitenland'], opinie:['label-opinie','Opinie'] };
+const CL = { politiek:['label-politiek','Politiek'], economie:['label-economie','Economie'], binnenland:['label-binnenland','Binnenland'], buitenland:['label-buitenland','Buitenland'] };
 const rLabel = r => { const [c,t]=RL[r]||['','']; return t?`<span class="label ${c}">${t}</span>`:''; };
 const cLabel = c => { const [cl,t]=CL[c]||['','']; return t?`<span class="label ${cl}">${t}</span>`:''; };
 
@@ -944,7 +940,7 @@ async function fetchFeed(url, meta) {
 
 // ── GEMINI CATEGORISATIE ─────────────────────────────────────────────────────
 const GROQ_URL = '/api/groq'; // API key zit veilig in Vercel environment variable
-const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','opinie','cultuur','overig'];
+const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','cultuur','overig'];
 const GEMINI_CACHE_KEY = 'debrief_groq_cache';
 const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 uur in ms
 
@@ -1094,7 +1090,7 @@ async function loadAll() {
   }
 
   // Verwijder sport- en cultuur-artikelen na Groq
-  arts = arts.filter(a => a.cat !== 'sport' && a.cat !== 'cultuur');
+  arts = arts.filter(a => a.cat !== 'sport' && a.cat !== 'cultuur' && a.cat !== 'opinie');
 
   const recent = arts.filter(a => {
     if (!a.pubDate) return false;
