@@ -710,12 +710,16 @@ const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','opinie','c
 const GEMINI_CACHE_KEY = 'debrief_groq_cache';
 const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 uur in ms
 
+function cacheKey(title) {
+  return title.trim().toLowerCase();
+}
+
 function geminiCacheGet(title) {
   try {
     const raw = localStorage.getItem(GEMINI_CACHE_KEY);
     if (!raw) return null;
     const cache = JSON.parse(raw);
-    const entry = cache[title];
+    const entry = cache[cacheKey(title)];
     if (!entry) return null;
     if (Date.now() - entry.ts > GEMINI_CACHE_TTL) return null;
     return entry.data || null;
@@ -732,7 +736,7 @@ function geminiCacheSet(entries) {
       if (now - cache[k].ts > GEMINI_CACHE_TTL) delete cache[k];
     }
     for (const { title, data } of entries) {
-      cache[title] = { data, ts: now };
+      cache[cacheKey(title)] = { data, ts: now };
     }
     localStorage.setItem(GEMINI_CACHE_KEY, JSON.stringify(cache));
   } catch {}
@@ -825,14 +829,15 @@ async function loadAll() {
 
   let arts = settled.flatMap(r => r.status==='fulfilled' ? r.value : []);
 
-  // Groq: categorisatie (VRT + Euronews) + vertaling (WSJ + Euronews)
+  // Groq: categorisatie (VRT + Euronews) + vertaling (Euronews)
+  // WSJ wordt gecategoriseerd via categoriseWSJ() — geen Groq nodig
   // Sport-artikelen worden uitgesloten — Groq kent geen 'sport' categorie en zou ze fout labelen
   const groqArts = arts
     .map((a, i) => ({
       index: i,
       title: a.title,
-      needsGroq: ['vrt','euronews','wsj'].includes(a.source.id) && a.cat !== 'sport',
-      translate: ['euronews','wsj'].includes(a.source.id)
+      needsGroq: ['vrt','euronews'].includes(a.source.id) && a.cat !== 'sport',
+      translate: ['euronews'].includes(a.source.id)
     }))
     .filter(a => a.needsGroq);
 
