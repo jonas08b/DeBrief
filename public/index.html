@@ -699,11 +699,11 @@ async function fetchFeed(url, meta) {
 const GROQ_URL = '/api/groq'; // API key zit veilig in Vercel environment variable
 const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','opinie','overig'];
 const GEMINI_CACHE_KEY = 'debrief_groq_cache';
-const GEMINI_CACHE_TTL = 60 * 60 * 1000; // 1 uur in ms
+const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 uur in ms
 
 function geminiCacheGet(title) {
   try {
-    const raw = sessionStorage.getItem(GEMINI_CACHE_KEY);
+    const raw = localStorage.getItem(GEMINI_CACHE_KEY);
     if (!raw) return null;
     const cache = JSON.parse(raw);
     const entry = cache[title];
@@ -716,7 +716,7 @@ function geminiCacheGet(title) {
 function geminiCacheSet(entries) {
   // entries = [{ title, data: { cat, nl? } }]
   try {
-    const raw = sessionStorage.getItem(GEMINI_CACHE_KEY);
+    const raw = localStorage.getItem(GEMINI_CACHE_KEY);
     const cache = raw ? JSON.parse(raw) : {};
     const now = Date.now();
     for (const k of Object.keys(cache)) {
@@ -725,7 +725,7 @@ function geminiCacheSet(entries) {
     for (const { title, data } of entries) {
       cache[title] = { data, ts: now };
     }
-    sessionStorage.setItem(GEMINI_CACHE_KEY, JSON.stringify(cache));
+    localStorage.setItem(GEMINI_CACHE_KEY, JSON.stringify(cache));
   } catch {}
 }
 
@@ -839,8 +839,11 @@ async function loadAll() {
     }
   }
 
-  const today = arts.filter(a => isToday(a.pubDate));
-  arts = (today.length > 0 ? today : arts)
+  const recent = arts.filter(a => {
+    if (!a.pubDate) return false;
+    return (Date.now() - new Date(a.pubDate).getTime()) < 24 * 60 * 60 * 1000;
+  });
+  arts = (recent.length > 0 ? recent : arts)
     .sort((a,b) => new Date(b.pubDate||0) - new Date(a.pubDate||0));
 
   const seen = new Set();
