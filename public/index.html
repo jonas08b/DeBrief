@@ -284,8 +284,8 @@
   .popup-sheet.open { transform: translateY(0); }
 
   .popup-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 20px 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 10px 20px 0;
   }
   .popup-close {
     width: 32px; height: 32px; border-radius: 50%;
@@ -391,8 +391,8 @@
 
 <div class="popup-overlay" id="popupOverlay"></div>
 <div class="popup-sheet" id="popupSheet">
+  <div class="popup-handle"></div>
   <div class="popup-header">
-    <div class="popup-handle" style="margin:0"></div>
     <button class="popup-close" id="popupClose" aria-label="Sluiten">&#x2715;</button>
   </div>
   <div class="popup-body">
@@ -697,7 +697,7 @@ async function fetchFeed(url, meta) {
 
 // ── GEMINI CATEGORISATIE ─────────────────────────────────────────────────────
 const GROQ_URL = '/api/groq'; // API key zit veilig in Vercel environment variable
-const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','opinie','overig'];
+const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','opinie','cultuur','overig'];
 const GEMINI_CACHE_KEY = 'debrief_groq_cache';
 const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 uur in ms
 
@@ -750,12 +750,13 @@ async function groqProcess(articles) {
 
   const inputJson = JSON.stringify(uncached.map(a => ({ i: a.index, t: a.title, tr: a.translate })));
   const prompt = `Je krijgt een lijst nieuwsartikels. Voor elk artikel:
-1. Kies een categorie uit: binnenland, buitenland, politiek, economie, opinie, overig
+1. Kies een categorie uit: binnenland, buitenland, politiek, economie, opinie, cultuur, overig
    - binnenland: nieuws over België intern
    - buitenland: internationaal nieuws, buitenlandse gebeurtenissen
    - politiek: politiek, verkiezingen, beleid, regeringen
    - economie: economie, financiën, bedrijven, markten, tech, wetenschap
    - opinie: opiniestukken, commentaar, analyses
+   - cultuur: kunst, muziek, film, literatuur, theater, poëzie, erfgoed, media
    - overig: alles wat niet past
 2. Als "tr" true is: vertaal de titel naar natuurlijk Nederlands. Als "tr" false is: laat "nl" weg.
 
@@ -816,11 +817,12 @@ async function loadAll() {
   let arts = settled.flatMap(r => r.status==='fulfilled' ? r.value : []);
 
   // Groq: categorisatie (VRT + Euronews) + vertaling (WSJ + Euronews)
+  // Sport-artikelen worden uitgesloten — Groq kent geen 'sport' categorie en zou ze fout labelen
   const groqArts = arts
     .map((a, i) => ({
       index: i,
       title: a.title,
-      needsGroq: ['vrt','euronews','wsj'].includes(a.source.id),
+      needsGroq: ['vrt','euronews','wsj'].includes(a.source.id) && a.cat !== 'sport',
       translate: ['euronews','wsj'].includes(a.source.id)
     }))
     .filter(a => a.needsGroq);
@@ -838,6 +840,9 @@ async function loadAll() {
       errors.push(`Groq: ${e.message}`);
     }
   }
+
+  // Verwijder sport- en cultuur-artikelen na Groq
+  arts = arts.filter(a => a.cat !== 'sport' && a.cat !== 'cultuur');
 
   const recent = arts.filter(a => {
     if (!a.pubDate) return false;
