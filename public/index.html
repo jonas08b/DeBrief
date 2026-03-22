@@ -388,7 +388,6 @@
   .markt-ticker-change.pos { background: #E6F4EC; color: #1A7A3A; }
   .markt-ticker-change.neg { background: #FDECEA; color: #C8311A; }
   .markt-ticker-change.neu { background: var(--border); color: var(--ink-muted); }
-  .markt-sparkline { width: 64px; height: 32px; flex-shrink: 0; }
 
   /* Watchlist remove btn */
   .markt-remove-btn {
@@ -1475,41 +1474,63 @@ function renderTickerRow(ticker, inWatchlist) {
         <div class="markt-ticker-symbol">${ticker.symbol}</div>
         <div class="markt-ticker-name">${ticker.name}</div>
       </div>
-      <canvas class="markt-sparkline" id="spark-${id}"></canvas>
       <div class="markt-ticker-right">
         <div class="markt-ticker-price" id="mprice-${id}"><span class="markt-loading-dot"></span></div>
         <div class="markt-ticker-change neu" id="mchange-${id}">—</div>
       </div>
-      ${inWatchlist ? `<button class="markt-remove-btn" data-remove="${ticker.symbol}" title="Verwijder">✕</button>` : ''}
+      ${inWatchlist ? `<button class="markt-remove-btn" data-remove="${ticker.symbol}" title="Verwijder">&#x2715;</button>` : ''}
     </div>`;
 }
 
-async function hydrateRow(ticker) {
-  const id = ticker.symbol.replace(/\//g, '_');
-  const priceEl  = document.getElementById(`mprice-${id}`);
-  const changeEl = document.getElementById(`mchange-${id}`);
-  const sparkEl  = document.getElementById(`spark-${id}`);
-  if (!priceEl) return;
+// ── Batch quote: 1 API call voor alle tickers tegelijk ────────────────────────
+async function hydrateAllRows(tickers) {
+  if (!tickers.length) return;
 
-  try {
-    const q   = await fetchQuote(ticker);
+  // Twelve Data accepteert komma-gescheiden symbolen in één call → 1 credit ipv N
+  const symbols = tickers.map(t => t.symbol).join(',');
+  const cacheKey = 'batch_quote|' + symbols;
+  let results = mktCacheGet(cacheKey);
+
+  if (!results) {
+    try {
+      const qs  = new URLSearchParams({ endpoint: 'quote', symbol: symbols }).toString();
+      const res = await fetch(`${MARKET_API}?${qs}`, { signal: timeoutSignal(12000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.status === 'error') throw new Error(data.message);
+      // Als er maar 1 ticker is, wikkelt Twelve Data het niet in een object
+      results = tickers.length === 1
+        ? { [tickers[0].symbol]: data }
+        : data;
+      mktCacheSet(cacheKey, results);
+    } catch {
+      // Fout: markeer alles als N/B
+      tickers.forEach(t => {
+        const id = t.symbol.replace(/\//g, '_');
+        const el = document.getElementById(`mprice-${id}`);
+        if (el) el.textContent = 'N/B';
+      });
+      return;
+    }
+  }
+
+  tickers.forEach(ticker => {
+    const id       = ticker.symbol.replace(/\//g, '_');
+    const priceEl  = document.getElementById(`mprice-${id}`);
+    const changeEl = document.getElementById(`mchange-${id}`);
+    if (!priceEl) return;
+
+    const q = results[ticker.symbol];
+    if (!q || q.status === 'error') {
+      priceEl.textContent  = 'N/B';
+      changeEl.textContent = '—';
+      return;
+    }
     const pct = parseFloat(q.percent_change);
     priceEl.textContent  = fmtPrice(q.close, ticker);
     changeEl.textContent = fmtPct(pct);
     changeEl.className   = `markt-ticker-change ${pctClass(pct)}`;
-
-    // Sparkline: 1D series
-    try {
-      const ts = await mktFetch('time_series', { symbol: ticker.symbol, interval: '1h', outputsize: 24 });
-      if (ts.values?.length > 1) {
-        const vals = [...ts.values].reverse().map(v => parseFloat(v.close));
-        drawSparkline(sparkEl, vals, pct >= 0);
-      }
-    } catch {}
-  } catch (e) {
-    if (priceEl) priceEl.textContent = 'N/B';
-    if (changeEl) { changeEl.textContent = '—'; changeEl.className = 'markt-ticker-change neu'; }
-  }
+  });
 }
 
 // ── Lijst renderen ────────────────────────────────────────────────────────────
@@ -1527,12 +1548,10 @@ function renderTickerList() {
   }
   html += '<div class="markt-section-label">Marktoverzicht</div>';
   presets.forEach(t => html += renderTickerRow(t, false));
-
   container.innerHTML = html;
 
-  // Hydrate async, met kleine vertraging per rij om rate-limit te vermijden
-  const all = [...wlTickers, ...presets];
-  all.forEach((t, i) => setTimeout(() => hydrateRow(t), i * 120));
+  // 1 batch call voor alle tickers = 1 credit
+  hydrateAllRows([...wlTickers, ...presets]);
 }
 
 // ── Detail openen ─────────────────────────────────────────────────────────────
