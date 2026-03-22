@@ -408,13 +408,6 @@
     cursor: pointer; z-index: 0;
   }
 
-  /* Watchlist remove btn */
-  .markt-remove-btn {
-    background: none; border: none; color: var(--ink-faint);
-    font-size: 16px; cursor: pointer; padding: 4px;
-    -webkit-tap-highlight-color: transparent;
-  }
-
   /* Detail */
   .markt-detail { padding: 0 16px 24px; animation: fadeUp .2s ease both; }
   .markt-detail-header {
@@ -487,11 +480,7 @@
   }
   #marktTVWidget { height: 100%; width: 100%; }
   #marktTVWidget iframe { border: none !important; }
-  .markt-chart-loading {
-    position: absolute; inset: 0; display: flex;
-    align-items: center; justify-content: center;
-    background: var(--bg-card); border-radius: 10px;
-  }
+
 
   /* Stats row */
   .markt-stats-row {
@@ -648,9 +637,6 @@
     </div>
     <div class="markt-chart-wrap">
       <div id="marktTVWidget"></div>
-      <div class="markt-chart-loading" id="marktChartLoading" style="display:none">
-        <div class="spinner"></div>
-      </div>
     </div>
     <div class="markt-stats-row" id="marktStatsRow"></div>
   </div>
@@ -859,14 +845,6 @@ function formatDate() {
   return new Date().toLocaleDateString('nl-BE',{weekday:'long',day:'numeric',month:'long'});
 }
 
-function isToday(ds) {
-  if (!ds) return false;
-  try {
-    const d = new Date(ds), n = new Date();
-    return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
-  } catch { return false; }
-}
-
 function timeAgo(ds) {
   if (!ds) return '';
   try {
@@ -921,25 +899,18 @@ const cLabel = c => { const [cl,t]=CL[c]||['','']; return t?`<span class="label 
 
 // ── PROGRESS ──────────────────────────────────────────────────────────────────
 let _done=0, _total=0;
-const bar = () => document.getElementById('progressBar');
+const bar = document.getElementById('progressBar');
 function tickProgress() {
   _done++;
   const pct = _total>0 ? Math.round((_done/_total)*100) : 100;
-  bar().style.width = pct+'%';
-  if (_done >= _total) setTimeout(()=>{ bar().style.width='0%'; }, 700);
-}
-
-// ── ABORT SIGNAL POLYFILL ─────────────────────────────────────────────────────
-function timeoutSignal(ms) {
-  const ctrl = new AbortController();
-  setTimeout(() => ctrl.abort(), ms);
-  return ctrl.signal;
+  bar.style.width = pct+'%';
+  if (_done >= _total) setTimeout(()=>{ bar.style.width='0%'; }, 700);
 }
 
 // ── FETCH ONE FEED ────────────────────────────────────────────────────────────
 async function fetchFeed(url, meta) {
   const api = RSS2JSON_BASE + encodeURIComponent(url);
-  const res  = await fetch(api, { signal: timeoutSignal(10000) });
+  const res  = await fetch(api, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (data.status !== 'ok' || !Array.isArray(data.items)) throw new Error(data.message || 'rss2json error');
@@ -971,7 +942,7 @@ async function fetchFeed(url, meta) {
 
 // ── GEMINI CATEGORISATIE ─────────────────────────────────────────────────────
 const GROQ_URL = '/api/groq'; // API key zit veilig in Vercel environment variable
-const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','cultuur','overig'];
+const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','overig'];
 const GEMINI_CACHE_KEY = 'debrief_groq_cache';
 const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 uur in ms
 
@@ -1028,14 +999,12 @@ async function groqProcess(articles) {
 
   const inputJson = JSON.stringify(uncached.map(a => ({ i: a.index, t: a.title, tr: a.translate })));
   const prompt = `Je krijgt een lijst nieuwsartikels. Voor elk artikel:
-1. Kies een categorie uit: binnenland, buitenland, politiek, economie, opinie, cultuur, overig
+1. Kies een categorie uit: binnenland, buitenland, politiek, economie, overig
    - binnenland: nieuws over België intern
    - buitenland: internationaal nieuws, buitenlandse gebeurtenissen
    - politiek: politiek, verkiezingen, beleid, regeringen
    - economie: economie, financiën, bedrijven, markten, tech, wetenschap
-   - opinie: opiniestukken, commentaar, analyses
-   - cultuur: kunst, muziek, film, literatuur, theater, poëzie, erfgoed, media
-   - overig: alles wat niet past
+   - overig: alles wat niet past (opinie, cultuur, sport, enz.)
 2. Als "tr" true is: vertaal de titel naar natuurlijk Nederlands. Als "tr" false is: laat "nl" weg.
 
 Geef ALLEEN een JSON-object terug, geen uitleg, geen markdown.
@@ -1052,7 +1021,7 @@ Artikels: ${inputJson}`;
       temperature: 0,
       messages: [{ role: 'user', content: prompt }]
     }),
-    signal: timeoutSignal(20000)
+    signal: AbortSignal.timeout(20000)
   });
   if (!res.ok) throw new Error(`Groq HTTP ${res.status}`);
   const data = await res.json();
@@ -1081,7 +1050,7 @@ async function loadAll() {
     src.urls.map(url => ({ url, meta: { name:src.name, region:src.region, id:src.id } }))
   );
   _done = 0; _total = tasks.length;
-  bar().style.width = '0%';
+  bar.style.width = '0%';
 
   const errors = [];
   const settled = await Promise.allSettled(
@@ -1120,8 +1089,8 @@ async function loadAll() {
     }
   }
 
-  // Verwijder sport- en cultuur-artikelen na Groq
-  arts = arts.filter(a => a.cat !== 'sport' && a.cat !== 'cultuur' && a.cat !== 'opinie');
+  // Verwijder sport-artikelen (Groq kent geen 'sport', die komen enkel uit keyword-filter)
+  arts = arts.filter(a => a.cat !== 'sport');
 
   const recent = arts.filter(a => {
     if (!a.pubDate) return false;
@@ -1389,7 +1358,7 @@ async function mktFetch(endpoint, params) {
   const cached = mktCacheGet(key);
   if (cached) return cached;
   const qs  = new URLSearchParams({ endpoint, ...params }).toString();
-  const res = await fetch(`${MARKET_API}?${qs}`, { signal: timeoutSignal(12000) });
+  const res = await fetch(`${MARKET_API}?${qs}`, { signal: AbortSignal.timeout(12000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -1485,7 +1454,6 @@ function renderTickerList() {
   wlLoad();
   const container  = document.getElementById('marktTickerList');
   const customList = customLoad();
-  const presets    = PRESET_TICKERS;
 
   let html = '';
 
@@ -1495,15 +1463,22 @@ function renderTickerList() {
   }
 
   html += '<div class="markt-section-label">Marktoverzicht</div>';
-  presets.forEach(t => html += renderTickerRow(t, false));
+  PRESET_TICKERS.forEach(t => html += renderTickerRow(t, false));
 
   container.innerHTML = html;
-  hydrateAllRows([...customList, ...presets]);
+  hydrateAllRows([...customList, ...PRESET_TICKERS]);
   initSwipe();
 }
 
 // ── Swipe to delete ───────────────────────────────────────────────────────────
+let swipeAbortController = null;
+
 function initSwipe() {
+  // Verwijder alle vorige document-listeners van de vorige render
+  if (swipeAbortController) swipeAbortController.abort();
+  swipeAbortController = new AbortController();
+  const { signal } = swipeAbortController;
+
   document.querySelectorAll('.markt-swipe-wrap').forEach(wrap => {
     const row     = wrap.querySelector('.markt-ticker-row');
     const del     = wrap.querySelector('.markt-swipe-delete');
@@ -1519,7 +1494,6 @@ function initSwipe() {
     row.addEventListener('touchmove', e => {
       if (!swiping) return;
       currentX = e.touches[0].clientX - startX;
-      // Alleen naar links swipen
       if (currentX > 0) { row.style.transform = 'translateX(0)'; return; }
       const clamped = Math.max(currentX, -80);
       row.style.transform = `translateX(${clamped}px)`;
@@ -1528,7 +1502,6 @@ function initSwipe() {
     row.addEventListener('touchend', () => {
       swiping = false;
       if (currentX < -40) {
-        // Genoeg geswiped → toon delete knop
         row.style.transform = 'translateX(-80px)';
         revealed = true;
       } else {
@@ -1537,7 +1510,6 @@ function initSwipe() {
       }
     });
 
-    // Klik op delete knop
     del.addEventListener('click', e => {
       e.stopPropagation();
       wrap.style.transition = 'opacity .2s, height .2s';
@@ -1556,7 +1528,7 @@ function initSwipe() {
         row.style.transform = 'translateX(0)';
         revealed = false;
       }
-    }, { passive: true });
+    }, { passive: true, signal });
   });
 }
 
@@ -1581,7 +1553,7 @@ async function mktDoSearch() {
 
     // Via Vercel proxy → TradingView symbol search
     const qs  = new URLSearchParams({ endpoint: 'search', q: raw }).toString();
-    const res = await fetch(`${MARKET_API}?${qs}`, { signal: timeoutSignal(12000) });
+    const res = await fetch(`${MARKET_API}?${qs}`, { signal: AbortSignal.timeout(12000) });
     if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -1603,17 +1575,18 @@ async function mktDoSearch() {
   }
 }
 
+let _searchHits = [];
+
 function showSearchResults(hits) {
+  _searchHits = hits;
   const container = document.getElementById('marktTickerList');
   let html = '<div class="markt-section-label">Zoekresultaten</div>';
 
-  hits.forEach(h => {
-    // TradingView geeft { symbol, full_name, description, exchange, type }
+  hits.forEach((h, i) => {
     const display = h.description || h.symbol;
     const exch    = h.exchange || '';
-    const safe    = JSON.stringify(h).replace(/'/g, '&#39;');
     html += `
-      <div class="markt-ticker-row markt-search-result" data-hit='${safe}'>
+      <div class="markt-ticker-row markt-search-result" data-hit-index="${i}">
         <div class="markt-ticker-info">
           <div class="markt-ticker-symbol">${h.symbol}</div>
           <div class="markt-ticker-name">${display}</div>
@@ -1636,13 +1609,12 @@ function showSearchResults(hits) {
 
   container.querySelectorAll('.markt-search-result').forEach(row => {
     row.addEventListener('click', () => {
-      const h      = JSON.parse(row.dataset.hit);
-      // full_name is "EXCHANGE:SYMBOL" — exact wat TradingView widget verwacht
+      const h      = _searchHits[parseInt(row.dataset.hitIndex)];
       const tvSym  = h.full_name || `${h.exchange}:${h.symbol}`;
       const ticker = {
         symbol:   h.symbol,
-        src:      h.symbol,   // voor Alpha Vantage quote
-        tv:       tvSym,      // voor TradingView widget
+        src:      h.symbol,
+        tv:       tvSym,
         name:     h.description || h.symbol,
         type:     h.type || 'stock',
         decimals: 2, prefix: '', suffix: '',
@@ -1681,7 +1653,12 @@ async function openDetail(ticker) {
     b.classList.toggle('active', b.dataset.period === '1day'));
   document.getElementById('marktCustomDates').style.display = 'none';
   updateWatchlistBtn();
-  loadQuote();
+  // Sla de ticker op zodat async callbacks nog steeds de juiste ticker targeten
+  const activeTicker = ticker;
+  loadQuote().then(() => {
+    // Negeer resultaat als gebruiker ondertussen naar een andere ticker navigeerde
+    if (mktCurrentTicker !== activeTicker) return;
+  });
   buildTVWidget(ticker.tv, mktCurrentPeriod);
 }
 
@@ -1693,7 +1670,7 @@ function updateWatchlistBtn() {
 }
 
 // ── TradingView widget ────────────────────────────────────────────────────────
-function buildTVWidget(tvSymbol, period) {
+function buildTVWidget(tvSymbol, period, dateFrom, dateTo) {
   const wrap = document.getElementById('marktTVWidget');
   if (!wrap) return;
   wrap.innerHTML = '';
@@ -1710,15 +1687,10 @@ function buildTVWidget(tvSymbol, period) {
   inner.style.cssText = 'height:100%;width:100%';
   container.appendChild(inner);
 
-  const script = document.createElement('script');
-  script.type  = 'text/javascript';
-  script.src   = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-  script.async = true;
-  script.innerHTML = JSON.stringify({
+  const widgetConfig = {
     autosize:            true,
     symbol:              tvSymbol,
     interval:            cfg.interval,
-    range:               cfg.range,
     timezone:            'Europe/Brussels',
     theme:               dark ? 'dark' : 'light',
     style:               '2',
@@ -1731,7 +1703,21 @@ function buildTVWidget(tvSymbol, period) {
     allow_symbol_change: false,
     isTransparent:       true,
     support_host:        'https://www.tradingview.com',
-  });
+  };
+
+  // Gebruik from/to bij aangepaste periode, anders de vooraf ingestelde range
+  if (period === 'custom' && dateFrom && dateTo) {
+    widgetConfig.from = Math.floor(new Date(dateFrom).getTime() / 1000);
+    widgetConfig.to   = Math.floor(new Date(dateTo).getTime() / 1000);
+  } else {
+    widgetConfig.range = cfg.range;
+  }
+
+  const script = document.createElement('script');
+  script.type  = 'text/javascript';
+  script.src   = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  script.async = true;
+  script.innerHTML = JSON.stringify(widgetConfig);
 
   container.appendChild(script);
   wrap.appendChild(container);
@@ -1774,22 +1760,6 @@ async function loadQuote(period) {
 }
 
 // ── Zoeken ────────────────────────────────────────────────────────────────────
-async function mktDoSearch() {
-  const raw   = document.getElementById('marktSearchInput').value.trim().toUpperCase();
-  if (!raw) return;
-  const errEl = document.getElementById('marktSearchError');
-  errEl.style.display = 'none';
-
-  const all   = [...PRESET_TICKERS, ...mktWatchlist];
-  const local = all.find(t =>
-    t.symbol.toUpperCase() === raw || t.src?.toUpperCase() === raw
-  );
-  if (local) { openDetail(local); return; }
-
-  errEl.textContent   = `"${raw}" niet gevonden.`;
-  errEl.style.display = 'block';
-}
-
 // ── Events ────────────────────────────────────────────────────────────────────
 document.getElementById('marktBackBtn').addEventListener('click', () => { showListPanel(); renderTickerList(); });
 document.getElementById('marktWatchlistBtn').addEventListener('click', () => {
@@ -1827,7 +1797,12 @@ document.getElementById('marktPeriodRow').addEventListener('click', e => {
   }
 });
 document.getElementById('marktDateApply').addEventListener('click', () => {
-  if (mktCurrentTicker) buildTVWidget(mktCurrentTicker.tv, '1year');
+  if (!mktCurrentTicker) return;
+  const from = document.getElementById('marktDateFrom').value;
+  const to   = document.getElementById('marktDateTo').value;
+  // Bouw widget met aangepast bereik; gebruik '1year' als fallback wanneer datums ontbreken
+  const period = (from && to) ? 'custom' : '1year';
+  buildTVWidget(mktCurrentTicker.tv, period, from, to);
 });
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
