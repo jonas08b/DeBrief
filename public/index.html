@@ -389,6 +389,25 @@
   .markt-ticker-change.neg { background: #FDECEA; color: #C8311A; }
   .markt-ticker-change.neu { background: var(--border); color: var(--ink-muted); }
 
+  /* Swipe to delete */
+  .markt-swipe-wrap {
+    position: relative; overflow: hidden;
+    border-radius: 8px; margin-bottom: 8px;
+  }
+  .markt-swipe-wrap .markt-ticker-row {
+    margin-bottom: 0; border-radius: 0;
+    transition: transform .25s ease;
+    position: relative; z-index: 1;
+  }
+  .markt-swipe-delete {
+    position: absolute; right: 0; top: 0; bottom: 0;
+    width: 80px; background: #C8311A;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 12px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase;
+    cursor: pointer; z-index: 0;
+  }
+
   /* Watchlist remove btn */
   .markt-remove-btn {
     background: none; border: none; color: var(--ink-faint);
@@ -1398,24 +1417,7 @@ function pctClass(val) {
   return n > 0 ? 'pos' : 'neg';
 }
 
-// ── Ticker rij ────────────────────────────────────────────────────────────────
-function renderTickerRow(ticker, inWatchlist) {
-  const id = ticker.symbol.replace(/[^a-zA-Z0-9]/g, '_');
-  return `
-    <div class="markt-ticker-row" data-symbol="${ticker.symbol}">
-      <div class="markt-ticker-info">
-        <div class="markt-ticker-symbol">${ticker.symbol}</div>
-        <div class="markt-ticker-name">${ticker.name}</div>
-      </div>
-      <div class="markt-ticker-right">
-        <div class="markt-ticker-price" id="mprice-${id}"><span class="markt-loading-dot"></span></div>
-        <div class="markt-ticker-change neu" id="mchange-${id}">—</div>
-      </div>
-      ${inWatchlist ? `<button class="markt-remove-btn" data-remove="${ticker.symbol}" title="Verwijder">&#x2715;</button>` : ''}
-    </div>`;
-}
-
-// ── Quotes laden ──────────────────────────────────────────────────────────────
+// ── Detail ────────────────────────────────────────────────────────────────────
 async function hydrateAllRows(tickers) {
   if (!tickers.length) return;
   await Promise.allSettled(tickers.map(async ticker => {
@@ -1435,26 +1437,211 @@ async function hydrateAllRows(tickers) {
   }));
 }
 
-// ── Lijst ─────────────────────────────────────────────────────────────────────
-function renderTickerList() {
-  wlLoad();
-  const container = document.getElementById('marktTickerList');
-  const wlSymbols = mktWatchlist.map(t => t.symbol);
-  const presets   = PRESET_TICKERS.filter(t => !wlSymbols.includes(t.symbol));
+// ── Eigen aandelen (gezocht via zoekbalk) ─────────────────────────────────────
+const CUSTOM_KEY = 'debrief_custom_tickers_v1';
 
-  let html = '';
-  if (mktWatchlist.length) {
-    html += '<div class="markt-section-label">Watchlist</div>';
-    mktWatchlist.forEach(t => html += renderTickerRow(t, true));
+function customLoad() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); } catch { return []; }
+}
+function customSave(list) {
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch {}
+}
+function customAdd(ticker) {
+  const list = customLoad();
+  if (!list.find(t => t.symbol === ticker.symbol)) {
+    list.push(ticker);
+    customSave(list);
   }
-  html += '<div class="markt-section-label">Marktoverzicht</div>';
-  presets.forEach(t => html += renderTickerRow(t, false));
-  container.innerHTML = html;
-
-  hydrateAllRows([...mktWatchlist, ...presets]);
+}
+function customRemove(symbol) {
+  customSave(customLoad().filter(t => t.symbol !== symbol));
 }
 
-// ── Detail ────────────────────────────────────────────────────────────────────
+// ── Lijst ─────────────────────────────────────────────────────────────────────
+function renderTickerRow(ticker, swipeable) {
+  const id = ticker.symbol.replace(/[^a-zA-Z0-9]/g, '_');
+  const inner = `
+    <div class="markt-ticker-row" data-symbol="${ticker.symbol}">
+      <div class="markt-ticker-info">
+        <div class="markt-ticker-symbol">${ticker.symbol}</div>
+        <div class="markt-ticker-name">${ticker.name}</div>
+      </div>
+      <div class="markt-ticker-right">
+        <div class="markt-ticker-price" id="mprice-${id}"><span class="markt-loading-dot"></span></div>
+        <div class="markt-ticker-change neu" id="mchange-${id}">—</div>
+      </div>
+    </div>`;
+
+  if (!swipeable) return inner;
+
+  return `
+    <div class="markt-swipe-wrap" data-swipe-symbol="${ticker.symbol}">
+      ${inner}
+      <div class="markt-swipe-delete" data-delete="${ticker.symbol}">Wis</div>
+    </div>`;
+}
+
+function renderTickerList() {
+  wlLoad();
+  const container  = document.getElementById('marktTickerList');
+  const customList = customLoad();
+  const presets    = PRESET_TICKERS;
+
+  let html = '';
+
+  if (customList.length) {
+    html += '<div class="markt-section-label">Eigen aandelen</div>';
+    customList.forEach(t => html += renderTickerRow(t, true));
+  }
+
+  html += '<div class="markt-section-label">Marktoverzicht</div>';
+  presets.forEach(t => html += renderTickerRow(t, false));
+
+  container.innerHTML = html;
+  hydrateAllRows([...customList, ...presets]);
+  initSwipe();
+}
+
+// ── Swipe to delete ───────────────────────────────────────────────────────────
+function initSwipe() {
+  document.querySelectorAll('.markt-swipe-wrap').forEach(wrap => {
+    const row     = wrap.querySelector('.markt-ticker-row');
+    const del     = wrap.querySelector('.markt-swipe-delete');
+    const symbol  = wrap.dataset.swipeSymbol;
+    let startX = 0, currentX = 0, swiping = false, revealed = false;
+
+    row.addEventListener('touchstart', e => {
+      startX   = e.touches[0].clientX;
+      currentX = 0;
+      swiping  = true;
+    }, { passive: true });
+
+    row.addEventListener('touchmove', e => {
+      if (!swiping) return;
+      currentX = e.touches[0].clientX - startX;
+      // Alleen naar links swipen
+      if (currentX > 0) { row.style.transform = 'translateX(0)'; return; }
+      const clamped = Math.max(currentX, -80);
+      row.style.transform = `translateX(${clamped}px)`;
+    }, { passive: true });
+
+    row.addEventListener('touchend', () => {
+      swiping = false;
+      if (currentX < -40) {
+        // Genoeg geswiped → toon delete knop
+        row.style.transform = 'translateX(-80px)';
+        revealed = true;
+      } else {
+        row.style.transform = 'translateX(0)';
+        revealed = false;
+      }
+    });
+
+    // Klik op delete knop
+    del.addEventListener('click', e => {
+      e.stopPropagation();
+      wrap.style.transition = 'opacity .2s, height .2s';
+      wrap.style.opacity    = '0';
+      wrap.style.height     = wrap.offsetHeight + 'px';
+      requestAnimationFrame(() => { wrap.style.height = '0'; });
+      setTimeout(() => {
+        customRemove(symbol);
+        renderTickerList();
+      }, 220);
+    });
+
+    // Klik ergens anders → sluit swipe
+    document.addEventListener('touchstart', e => {
+      if (revealed && !wrap.contains(e.target)) {
+        row.style.transform = 'translateX(0)';
+        revealed = false;
+      }
+    }, { passive: true });
+  });
+}
+
+// ── Zoeken ────────────────────────────────────────────────────────────────────
+async function mktDoSearch() {
+  const raw    = document.getElementById('marktSearchInput').value.trim();
+  if (!raw) return;
+  const errEl  = document.getElementById('marktSearchError');
+  const btn    = document.getElementById('marktSearchBtn');
+  errEl.style.display = 'none';
+  btn.textContent     = '…';
+  btn.disabled        = true;
+
+  try {
+    // Zoek eerst lokaal
+    const upper = raw.toUpperCase();
+    const all   = [...PRESET_TICKERS, ...customLoad()];
+    const local = all.find(t =>
+      t.symbol.toUpperCase() === upper || t.src?.toUpperCase() === upper
+    );
+    if (local) { openDetail(local); return; }
+
+    // Anders: zoek via Alpha Vantage SYMBOL_SEARCH
+    const data = await mktFetch('search', { q: raw });
+    const hits  = data?.hits || [];
+
+    if (!hits.length) {
+      errEl.textContent   = `"${raw}" niet gevonden.`;
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // Toon resultaten als keuzelijst
+    showSearchResults(hits);
+  } catch (e) {
+    errEl.textContent   = 'Zoeken mislukt: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Zoek';
+    btn.disabled    = false;
+  }
+}
+
+function showSearchResults(hits) {
+  const container = document.getElementById('marktTickerList');
+  let html = '<div class="markt-section-label">Zoekresultaten</div>';
+  hits.slice(0, 8).forEach(h => {
+    html += `
+      <div class="markt-ticker-row markt-search-result" data-hit='${JSON.stringify(h)}'>
+        <div class="markt-ticker-info">
+          <div class="markt-ticker-symbol">${h.symbol}</div>
+          <div class="markt-ticker-name">${h.name}</div>
+        </div>
+        <div class="markt-ticker-right">
+          <div class="markt-ticker-change neu" style="font-size:10px">${h.exchange || ''}</div>
+        </div>
+      </div>`;
+  });
+  html += `<div style="padding:12px 4px">
+    <button id="marktSearchBack" style="background:none;border:none;color:var(--accent);font-family:var(--font-sans);font-size:13px;font-weight:600;cursor:pointer;padding:0">← Terug</button>
+  </div>`;
+  container.innerHTML = html;
+
+  document.getElementById('marktSearchBack').addEventListener('click', () => {
+    renderTickerList();
+    document.getElementById('marktSearchInput').value = '';
+  });
+
+  container.querySelectorAll('.markt-search-result').forEach(row => {
+    row.addEventListener('click', () => {
+      const h = JSON.parse(row.dataset.hit);
+      const ticker = {
+        symbol:   h.symbol,
+        src:      h.symbol,
+        tv:       `${h.exchange}:${h.symbol}`,
+        name:     h.name,
+        type:     h.type,
+        decimals: 2, prefix: '', suffix: '',
+      };
+      customAdd(ticker);
+      document.getElementById('marktSearchInput').value = '';
+      openDetail(ticker);
+    });
+  });
+}
 function showDetailPanel() {
   document.getElementById('marktTickerList').style.display = 'none';
   document.getElementById('marktSearchWrap').style.display = 'none';
@@ -1605,11 +1792,9 @@ document.getElementById('marktSearchInput').addEventListener('keydown', e => {
   document.getElementById('marktSearchError').style.display = 'none';
 });
 document.getElementById('marktTickerList').addEventListener('click', e => {
-  const rm = e.target.closest('[data-remove]');
-  if (rm) { e.stopPropagation(); wlRemove(rm.dataset.remove); renderTickerList(); return; }
   const row = e.target.closest('.markt-ticker-row');
-  if (!row) return;
-  const all    = [...PRESET_TICKERS, ...mktWatchlist];
+  if (!row || row.classList.contains('markt-search-result')) return;
+  const all    = [...PRESET_TICKERS, ...customLoad()];
   const ticker = all.find(t => t.symbol === row.dataset.symbol);
   if (ticker) openDetail(ticker);
 });
