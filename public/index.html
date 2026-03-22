@@ -1764,26 +1764,7 @@ document.getElementById('catTabs').addEventListener('click', e => {
   }
 });
 
-  if (tab === 'markt') {
-    panel.style.display = 'block';
-    feed.style.display  = 'none';
-    if (srcRow) srcRow.style.display = 'none';
-    if (!mktInited) {
-      mktInited = true;
-      if (!window.Chart) {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-        s.onload = () => { wlLoad(); renderTickerList(); };
-        document.head.appendChild(s);
-      } else { wlLoad(); renderTickerList(); }
-    }
-  } else {
-    panel.style.display = 'none';
-    feed.style.display  = 'block';
-    if (srcRow) srcRow.style.display = '';
-    if (mktChartInst) { mktChartInst.destroy(); mktChartInst = null; }
-  }
-});
+
 
 
 </script>
