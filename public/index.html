@@ -497,6 +497,17 @@
   }
   @keyframes shimmer { to { background-position: -200% 0; } }
 
+
+  .markt-loading-dot {
+    display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--ink-faint);
+    animation: pulse 1s ease infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+  .markt-search-error {
+    font-size: 12px; color: var(--accent);
+    margin-top: 6px; padding: 0 2px;
+  }
   @media (prefers-color-scheme: dark) {
     .markt-ticker-change.pos { background: #0D2E18; color: #4ADE80; }
     .markt-ticker-change.neg { background: #2E0D0D; color: #F87171; }
@@ -573,12 +584,13 @@
 
 <!-- ── MARKT PANEL ── -->
 <div id="marktPanel" class="markt-panel" style="display:none">
-  <div class="markt-search-wrap">
+  <div class="markt-search-wrap" id="marktSearchWrap">
     <div class="markt-search-box">
       <svg viewBox="0 0 24 24" class="markt-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="marktSearchInput" class="markt-search-input" placeholder="Zoek ticker… bijv. AAPL, BTC/USD" autocomplete="off" autocorrect="off" spellcheck="false">
+      <input type="text" id="marktSearchInput" class="markt-search-input" placeholder="Zoek ticker… bijv. AAPL, MSFT, BTC/USD" autocomplete="off" autocorrect="off" spellcheck="false">
       <button id="marktSearchBtn" class="markt-search-submit">Zoek</button>
     </div>
+    <div class="markt-search-error" id="marktSearchError" style="display:none"></div>
   </div>
 
   <div class="markt-ticker-list" id="marktTickerList"></div>
@@ -1300,233 +1312,247 @@ sheet.addEventListener('touchend', e => {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// MARKT TAB
+// MARKT TAB — volledig herschreven
 // ══════════════════════════════════════════════════════════════════════════════
 
-const MARKET_API = '/api/market';
-const MARKET_CACHE_KEY = 'debrief_market_cache';
-const MARKET_CACHE_TTL = 15 * 60 * 1000; // 15 min
+const MARKET_API       = '/api/market';
+const MKT_CACHE_KEY    = 'debrief_mkt_v2';
+const MKT_CACHE_TTL    = 15 * 60 * 1000; // 15 min
+const WL_KEY           = 'debrief_watchlist_v2';
 
+// ── Preset tickers — exact Twelve Data symbolen + metadata ───────────────────
 const PRESET_TICKERS = [
-  { symbol: 'BEL20',   name: 'BEL 20 Index',        td: '^BFX',   type: 'index' },
-  { symbol: 'XAU/USD', name: 'Goud / US Dollar',     td: 'XAU/USD', type: 'forex' },
-  { symbol: 'SPX',     name: 'S&P 500 Index',        td: 'SPX',    type: 'index' },
-  { symbol: 'BTC/USD', name: 'Bitcoin / US Dollar',  td: 'BTC/USD', type: 'crypto' },
-  { symbol: 'EUR/USD', name: 'Euro / US Dollar',     td: 'EUR/USD', type: 'forex' },
+  { symbol:'EUR/USD', name:'Euro / US Dollar',         type:'forex',    decimals:4, prefix:'',  suffix:'' },
+  { symbol:'XAU/USD', name:'Goud (Troy Ounce)',         type:'forex',    decimals:2, prefix:'$', suffix:'' },
+  { symbol:'SPX',     name:'S&P 500 Index',             type:'index',    decimals:2, prefix:'',  suffix:'' },
+  { symbol:'BEL20',   name:'BEL 20 Index',              type:'index',    decimals:2, prefix:'',  suffix:'' },
+  { symbol:'US10Y',   name:'US 10-Jaar Rente',          type:'bond',     decimals:3, prefix:'',  suffix:'%' },
+  { symbol:'WTI/USD', name:'Ruwe Olie WTI ($/vat)',     type:'forex',    decimals:2, prefix:'$', suffix:'' },
 ];
 
-let marketWatchlist = JSON.parse(localStorage.getItem('debrief_watchlist') || '[]');
-let currentTicker   = null;
-let currentPeriod   = '1day';
-let marktChartInstance = null;
-let marktActive     = false;
+// Interval config per tijdsperiode
+const PERIOD_CONFIG = {
+  '1D':  { interval:'5min',   outputsize: 78,  labelFmt:'time' },
+  '1M':  { interval:'1day',   outputsize: 30,  labelFmt:'date' },
+  '6M':  { interval:'1week',  outputsize: 26,  labelFmt:'date' },
+  '1J':  { interval:'1month', outputsize: 12,  labelFmt:'month' },
+};
 
-// ── Cache helpers ─────────────────────────────────────────────────────────────
-function marketCacheGet(key) {
+let mktWatchlist      = [];
+let mktCurrentTicker  = null;
+let mktCurrentPeriod  = '1D';
+let mktChartInst      = null;
+let mktInited         = false;
+
+// ── Watchlist persistentie ────────────────────────────────────────────────────
+function wlLoad() {
+  try { mktWatchlist = JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch { mktWatchlist = []; }
+}
+function wlSave() {
+  try { localStorage.setItem(WL_KEY, JSON.stringify(mktWatchlist)); } catch {}
+}
+function wlHas(symbol) { return mktWatchlist.some(t => t.symbol === symbol); }
+function wlAdd(ticker) {
+  if (!wlHas(ticker.symbol)) { mktWatchlist.push(ticker); wlSave(); }
+}
+function wlRemove(symbol) {
+  mktWatchlist = mktWatchlist.filter(t => t.symbol !== symbol); wlSave();
+}
+
+// ── Cache ─────────────────────────────────────────────────────────────────────
+function mktCacheGet(key) {
   try {
-    const raw = localStorage.getItem(MARKET_CACHE_KEY);
-    if (!raw) return null;
-    const store = JSON.parse(raw);
-    const entry = store[key];
-    if (!entry || Date.now() - entry.ts > MARKET_CACHE_TTL) return null;
-    return entry.data;
+    const store = JSON.parse(localStorage.getItem(MKT_CACHE_KEY) || '{}');
+    const e = store[key];
+    if (!e || Date.now() - e.ts > MKT_CACHE_TTL) return null;
+    return e.data;
   } catch { return null; }
 }
-function marketCacheSet(key, data) {
+function mktCacheSet(key, data) {
   try {
-    const raw = localStorage.getItem(MARKET_CACHE_KEY);
-    const store = raw ? JSON.parse(raw) : {};
-    // Prune old entries
+    const store = JSON.parse(localStorage.getItem(MKT_CACHE_KEY) || '{}');
     const now = Date.now();
     for (const k of Object.keys(store)) {
-      if (now - store[k].ts > MARKET_CACHE_TTL * 4) delete store[k];
+      if (now - store[k].ts > MKT_CACHE_TTL * 8) delete store[k];
     }
     store[key] = { data, ts: now };
-    localStorage.setItem(MARKET_CACHE_KEY, JSON.stringify(store));
+    localStorage.setItem(MKT_CACHE_KEY, JSON.stringify(store));
   } catch {}
 }
 
-// ── API call via Vercel proxy ─────────────────────────────────────────────────
-async function marketFetch(params) {
-  const cacheKey = JSON.stringify(params);
-  const cached = marketCacheGet(cacheKey);
+// ── API fetch via Vercel proxy ────────────────────────────────────────────────
+async function mktFetch(endpoint, params) {
+  const cacheKey = endpoint + '|' + JSON.stringify(params);
+  const cached = mktCacheGet(cacheKey);
   if (cached) return cached;
 
-  const qs = new URLSearchParams(params).toString();
+  const qs = new URLSearchParams({ endpoint, ...params }).toString();
   const res = await fetch(`${MARKET_API}?${qs}`, { signal: timeoutSignal(12000) });
-  if (!res.ok) throw new Error(`Market API ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (data.status === 'error') throw new Error(data.message || 'API fout');
-  marketCacheSet(cacheKey, data);
+  mktCacheSet(cacheKey, data);
   return data;
 }
 
-// ── Get quote (price + 1d change) ─────────────────────────────────────────────
-async function fetchQuote(ticker) {
-  return marketFetch({ endpoint: 'quote', symbol: ticker.td });
-}
-
-// ── Get time series for chart ─────────────────────────────────────────────────
-async function fetchTimeSeries(ticker, period, dateFrom, dateTo) {
-  let interval, outputsize, startDate, endDate;
-  const now = new Date();
-
-  if (period === 'custom' && dateFrom && dateTo) {
-    interval   = '1day';
-    startDate  = dateFrom;
-    endDate    = dateTo;
-    outputsize = 500;
-  } else if (period === '1day') {
-    interval   = '15min';
-    outputsize = 30;
-  } else if (period === '1month') {
-    interval   = '1day';
-    outputsize = 30;
-  } else if (period === '6month') {
-    interval   = '1week';
-    outputsize = 26;
-  } else {
-    interval   = '1month';
-    outputsize = 12;
-  }
-
-  const params = { endpoint: 'time_series', symbol: ticker.td, interval, outputsize };
-  if (startDate) params.start_date = startDate;
-  if (endDate)   params.end_date   = endDate;
-  return marketFetch(params);
-}
-
-// ── Format helpers ─────────────────────────────────────────────────────────────
-function fmtPrice(v, symbol) {
-  if (v == null) return '—';
-  const n = parseFloat(v);
+// ── Prijsformattering ─────────────────────────────────────────────────────────
+function fmtPrice(val, ticker) {
+  if (val == null || val === '') return '—';
+  const n = parseFloat(val);
   if (isNaN(n)) return '—';
-  // Forex & crypto: more decimals
-  const decimals = (symbol||'').includes('/') ? 4 : 2;
-  return n.toLocaleString('nl-BE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  const dec = ticker?.decimals ?? 2;
+  const formatted = n.toLocaleString('nl-BE', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  return (ticker?.prefix || '') + formatted + (ticker?.suffix || '');
 }
-function fmtPct(v) {
-  if (v == null) return '—';
-  const n = parseFloat(v);
+
+function fmtPct(val) {
+  const n = parseFloat(val);
   if (isNaN(n)) return '—';
   return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 }
-function changeClass(v) {
-  const n = parseFloat(v);
+
+function pctClass(val) {
+  const n = parseFloat(val);
   if (isNaN(n) || n === 0) return 'neu';
   return n > 0 ? 'pos' : 'neg';
 }
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
-function drawSparkline(canvas, values, isPositive) {
-  if (!canvas || !values || values.length < 2) return;
-  const W = canvas.width  = canvas.offsetWidth  || 64;
-  const H = canvas.height = canvas.offsetHeight || 32;
+function drawSparkline(canvas, closes, isPos) {
+  if (!canvas || !closes || closes.length < 2) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.offsetWidth  || 64;
+  const H   = canvas.offsetHeight || 32;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
   const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, W, H);
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const pts = values.map((v, i) => ({
-    x: (i / (values.length - 1)) * W,
-    y: H - ((v - min) / range) * (H - 4) - 2
+  const mn = Math.min(...closes), mx = Math.max(...closes);
+  const range = mx - mn || 1;
+  const pts = closes.map((v, i) => ({
+    x: (i / (closes.length - 1)) * W,
+    y: H - 2 - ((v - mn) / range) * (H - 4)
   }));
 
-  const color = isPositive ? '#1A7A3A' : '#C8311A';
+  const color = isPos ? '#1A7A3A' : '#C8311A';
   ctx.beginPath();
   pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.stroke();
 
-  // Fill
   ctx.lineTo(pts[pts.length-1].x, H);
-  ctx.lineTo(0, H);
-  ctx.closePath();
-  ctx.fillStyle = isPositive ? 'rgba(26,122,58,.12)' : 'rgba(200,49,26,.10)';
+  ctx.lineTo(0, H); ctx.closePath();
+  ctx.fillStyle = isPos ? 'rgba(26,122,58,.12)' : 'rgba(200,49,26,.10)';
   ctx.fill();
 }
 
-// ── Render ticker list ─────────────────────────────────────────────────────────
-async function renderTickerList() {
-  const container = document.getElementById('marktTickerList');
+// ── Quote ophalen ─────────────────────────────────────────────────────────────
+async function fetchQuote(ticker) {
+  return mktFetch('quote', { symbol: ticker.symbol });
+}
 
-  // Determine which tickers to show
-  const watchlistSymbols = marketWatchlist.map(w => w.symbol);
-  const watchlistTickers = marketWatchlist;
-  const presetNotInWatchlist = PRESET_TICKERS.filter(t => !watchlistSymbols.includes(t.symbol));
-
-  let html = '';
-
-  if (watchlistTickers.length) {
-    html += '<div class="markt-section-label">Watchlist</div>';
-    watchlistTickers.forEach(t => {
-      html += tickerRowSkeleton(t, true);
+// ── Time series ophalen ───────────────────────────────────────────────────────
+async function fetchSeries(ticker, period, dateFrom, dateTo) {
+  if (period === 'custom') {
+    return mktFetch('time_series', {
+      symbol: ticker.symbol, interval: '1day', outputsize: 500,
+      start_date: dateFrom, end_date: dateTo
     });
   }
-
-  html += '<div class="markt-section-label">Marktoverzicht</div>';
-  presetNotInWatchlist.forEach(t => {
-    html += tickerRowSkeleton(t, false);
+  const cfg = PERIOD_CONFIG[period];
+  return mktFetch('time_series', {
+    symbol: ticker.symbol, interval: cfg.interval, outputsize: cfg.outputsize
   });
-
-  container.innerHTML = html;
-
-  // Fetch quotes async
-  const allTickers = [...watchlistTickers, ...presetNotInWatchlist];
-  await Promise.allSettled(allTickers.map(t => loadTickerRow(t)));
 }
 
-function tickerRowSkeleton(ticker, inWatchlist) {
-  return `<div class="markt-ticker-row" data-symbol="${ticker.symbol}" data-watchlist="${inWatchlist}">
-    <div class="markt-ticker-info">
-      <div class="markt-ticker-symbol">${ticker.symbol}</div>
-      <div class="markt-ticker-name">${ticker.name}</div>
-    </div>
-    <canvas class="markt-sparkline" id="spark-${ticker.symbol.replace('/','_')}"></canvas>
-    <div class="markt-ticker-right">
-      <div class="markt-ticker-price" id="price-${ticker.symbol.replace('/','_')}">—</div>
-      <div class="markt-ticker-change neu" id="change-${ticker.symbol.replace('/','_')}">—</div>
-    </div>
-    ${inWatchlist ? `<button class="markt-remove-btn" data-remove="${ticker.symbol}" title="Verwijder">✕</button>` : ''}
-  </div>`;
+// ── Ticker-rij renderen ───────────────────────────────────────────────────────
+function renderTickerRow(ticker, inWatchlist) {
+  const id = ticker.symbol.replace(/\//g, '_');
+  return `
+    <div class="markt-ticker-row" data-symbol="${ticker.symbol}">
+      <div class="markt-ticker-info">
+        <div class="markt-ticker-symbol">${ticker.symbol}</div>
+        <div class="markt-ticker-name">${ticker.name}</div>
+      </div>
+      <canvas class="markt-sparkline" id="spark-${id}"></canvas>
+      <div class="markt-ticker-right">
+        <div class="markt-ticker-price" id="mprice-${id}"><span class="markt-loading-dot"></span></div>
+        <div class="markt-ticker-change neu" id="mchange-${id}">—</div>
+      </div>
+      ${inWatchlist ? `<button class="markt-remove-btn" data-remove="${ticker.symbol}" title="Verwijder">✕</button>` : ''}
+    </div>`;
 }
 
-async function loadTickerRow(ticker) {
+async function hydrateRow(ticker) {
+  const id = ticker.symbol.replace(/\//g, '_');
+  const priceEl  = document.getElementById(`mprice-${id}`);
+  const changeEl = document.getElementById(`mchange-${id}`);
+  const sparkEl  = document.getElementById(`spark-${id}`);
+  if (!priceEl) return;
+
   try {
-    const data = await fetchQuote(ticker);
-    const id = ticker.symbol.replace('/','_');
-    const priceEl  = document.getElementById(`price-${id}`);
-    const changeEl = document.getElementById(`change-${id}`);
-    const sparkEl  = document.getElementById(`spark-${id}`);
-    if (!priceEl) return;
-
-    const pct = parseFloat(data.percent_change);
-    priceEl.textContent  = fmtPrice(data.close, ticker.symbol);
+    const q   = await fetchQuote(ticker);
+    const pct = parseFloat(q.percent_change);
+    priceEl.textContent  = fmtPrice(q.close, ticker);
     changeEl.textContent = fmtPct(pct);
-    changeEl.className   = `markt-ticker-change ${changeClass(pct)}`;
+    changeEl.className   = `markt-ticker-change ${pctClass(pct)}`;
 
-    // Fetch sparkline data (1 day, 15min)
+    // Sparkline: 1D series
     try {
-      const ts = await fetchTimeSeries(ticker, '1day');
-      if (ts.values && ts.values.length > 1) {
+      const ts = await mktFetch('time_series', { symbol: ticker.symbol, interval: '1h', outputsize: 24 });
+      if (ts.values?.length > 1) {
         const vals = [...ts.values].reverse().map(v => parseFloat(v.close));
         drawSparkline(sparkEl, vals, pct >= 0);
       }
     } catch {}
-  } catch {}
+  } catch (e) {
+    if (priceEl) priceEl.textContent = 'N/B';
+    if (changeEl) { changeEl.textContent = '—'; changeEl.className = 'markt-ticker-change neu'; }
+  }
 }
 
-// ── Open detail ───────────────────────────────────────────────────────────────
-async function openTickerDetail(ticker) {
-  currentTicker = ticker;
-  currentPeriod = '1day';
+// ── Lijst renderen ────────────────────────────────────────────────────────────
+function renderTickerList() {
+  wlLoad();
+  const container = document.getElementById('marktTickerList');
+  const wlSymbols = mktWatchlist.map(t => t.symbol);
+  const wlTickers = mktWatchlist;
+  const presets   = PRESET_TICKERS.filter(t => !wlSymbols.includes(t.symbol));
 
-  document.getElementById('marktTickerList').style.display = 'none';
-  document.getElementById('marktDetail').style.display     = 'block';
-  document.getElementById('marktSearchWrap') && (document.getElementById('marktSearchWrap').style.display = 'none');
+  let html = '';
+  if (wlTickers.length) {
+    html += '<div class="markt-section-label">Watchlist</div>';
+    wlTickers.forEach(t => html += renderTickerRow(t, true));
+  }
+  html += '<div class="markt-section-label">Marktoverzicht</div>';
+  presets.forEach(t => html += renderTickerRow(t, false));
+
+  container.innerHTML = html;
+
+  // Hydrate async, met kleine vertraging per rij om rate-limit te vermijden
+  const all = [...wlTickers, ...presets];
+  all.forEach((t, i) => setTimeout(() => hydrateRow(t), i * 120));
+}
+
+// ── Detail openen ─────────────────────────────────────────────────────────────
+function showDetailPanel() {
+  document.getElementById('marktTickerList').style.display  = 'none';
+  document.getElementById('marktSearchWrap').style.display  = 'none';
+  document.getElementById('marktDetail').style.display      = 'block';
+}
+function showListPanel() {
+  document.getElementById('marktDetail').style.display      = 'none';
+  document.getElementById('marktTickerList').style.display  = 'block';
+  document.getElementById('marktSearchWrap').style.display  = 'block';
+  if (mktChartInst) { mktChartInst.destroy(); mktChartInst = null; }
+  mktCurrentTicker = null;
+}
+
+async function openDetail(ticker) {
+  mktCurrentTicker = ticker;
+  mktCurrentPeriod = '1D';
+  showDetailPanel();
 
   document.getElementById('marktDetailName').textContent   = ticker.name;
   document.getElementById('marktDetailSymbol').textContent = ticker.symbol;
@@ -1535,269 +1561,259 @@ async function openTickerDetail(ticker) {
   document.getElementById('marktDetailChange').className   = 'markt-detail-change neu';
   document.getElementById('marktStatsRow').innerHTML       = '';
 
-  // Watchlist button
-  updateWatchlistBtn();
-
-  // Reset period buttons
-  document.querySelectorAll('.markt-period').forEach(b => {
-    b.classList.toggle('active', b.dataset.period === '1day');
-  });
+  // Period knoppen reset
+  document.querySelectorAll('.markt-period').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === '1D'));
   document.getElementById('marktCustomDates').style.display = 'none';
 
-  await loadDetailChart();
+  updateWatchlistBtn();
+  await loadChart();
 }
 
+// ── Watchlist knop ────────────────────────────────────────────────────────────
 function updateWatchlistBtn() {
-  const btn = document.getElementById('marktWatchlistBtn');
-  const inList = marketWatchlist.some(w => w.symbol === currentTicker.symbol);
-  btn.textContent = inList ? '✓ In watchlist' : '+ Watchlist';
-  btn.className   = `markt-watchlist-btn ${inList ? 'remove' : 'add'}`;
+  const btn   = document.getElementById('marktWatchlistBtn');
+  const inWl  = wlHas(mktCurrentTicker?.symbol);
+  btn.textContent = inWl ? '✓ In watchlist' : '+ Watchlist';
+  btn.className   = `markt-watchlist-btn ${inWl ? 'remove' : 'add'}`;
 }
 
-async function loadDetailChart(dateFrom, dateTo) {
-  const loadingEl = document.getElementById('marktChartLoading');
-  loadingEl.style.display = 'flex';
+// ── Grafiek laden ─────────────────────────────────────────────────────────────
+async function loadChart(dateFrom, dateTo) {
+  const loadEl = document.getElementById('marktChartLoading');
+  loadEl.style.display = 'flex';
 
   try {
-    const [quoteData, tsData] = await Promise.all([
-      fetchQuote(currentTicker),
-      fetchTimeSeries(currentTicker, currentPeriod, dateFrom, dateTo)
+    const [q, ts] = await Promise.all([
+      fetchQuote(mktCurrentTicker),
+      fetchSeries(mktCurrentTicker, mktCurrentPeriod, dateFrom, dateTo)
     ]);
 
-    // Price & change
-    const pct = parseFloat(quoteData.percent_change);
-    document.getElementById('marktDetailPrice').textContent  = fmtPrice(quoteData.close, currentTicker.symbol);
+    // Prijs & 1D change
+    const pct1d = parseFloat(q.percent_change);
+    document.getElementById('marktDetailPrice').textContent = fmtPrice(q.close, mktCurrentTicker);
     const chEl = document.getElementById('marktDetailChange');
-    chEl.textContent = fmtPct(pct);
-    chEl.className   = `markt-detail-change ${changeClass(pct)}`;
+    chEl.textContent = fmtPct(pct1d) + ' vandaag';
+    chEl.className   = `markt-detail-change ${pctClass(pct1d)}`;
 
-    // Build chart
-    if (tsData.values && tsData.values.length > 1) {
-      const values  = [...tsData.values].reverse();
-      const labels  = values.map(v => v.datetime);
-      const closes  = values.map(v => parseFloat(v.close));
-
-      // Period % change
-      const first = closes[0], last = closes[closes.length - 1];
-      const periodPct = ((last - first) / first) * 100;
-
-      renderDetailChart(labels, closes, periodPct >= 0);
-
-      // Stats
-      const high = Math.max(...closes), low = Math.min(...closes);
-      let statsHTML = `
-        <div class="markt-stat-card">
-          <div class="markt-stat-label">Periode %</div>
-          <div class="markt-stat-value ${changeClass(periodPct)}">${fmtPct(periodPct)}</div>
-        </div>
-        <div class="markt-stat-card">
-          <div class="markt-stat-label">Hoogste</div>
-          <div class="markt-stat-value">${fmtPrice(high, currentTicker.symbol)}</div>
-        </div>
-        <div class="markt-stat-card">
-          <div class="markt-stat-label">Laagste</div>
-          <div class="markt-stat-value">${fmtPrice(low, currentTicker.symbol)}</div>
-        </div>`;
-
-      // Add 1m, 1y stats if on 1day view
-      if (currentPeriod === '1day') {
-        statsHTML += `
-          <div class="markt-stat-card">
-            <div class="markt-stat-label">1D %</div>
-            <div class="markt-stat-value ${changeClass(pct)}">${fmtPct(pct)}</div>
-          </div>`;
-      }
-      document.getElementById('marktStatsRow').innerHTML = statsHTML;
+    if (!ts.values || ts.values.length < 2) {
+      document.getElementById('marktStatsRow').innerHTML =
+        '<div style="color:var(--ink-muted);font-size:13px;grid-column:1/-1">Geen historische data beschikbaar voor dit instrument.</div>';
+      return;
     }
+
+    const values   = [...ts.values].reverse();
+    const labels   = values.map(v => v.datetime);
+    const closes   = values.map(v => parseFloat(v.close));
+    const first    = closes[0];
+    const last     = closes[closes.length - 1];
+    const periodPct = ((last - first) / first) * 100;
+    const high     = Math.max(...closes);
+    const low      = Math.min(...closes);
+
+    buildChart(labels, closes, periodPct >= 0);
+
+    // Stats
+    const periodLabel = mktCurrentPeriod === 'custom'
+      ? `${dateFrom} → ${dateTo}` : mktCurrentPeriod;
+    document.getElementById('marktStatsRow').innerHTML = `
+      <div class="markt-stat-card">
+        <div class="markt-stat-label">${periodLabel} %</div>
+        <div class="markt-stat-value ${pctClass(periodPct)}">${fmtPct(periodPct)}</div>
+      </div>
+      <div class="markt-stat-card">
+        <div class="markt-stat-label">Vandaag %</div>
+        <div class="markt-stat-value ${pctClass(pct1d)}">${fmtPct(pct1d)}</div>
+      </div>
+      <div class="markt-stat-card">
+        <div class="markt-stat-label">Hoogste</div>
+        <div class="markt-stat-value">${fmtPrice(high, mktCurrentTicker)}</div>
+      </div>
+      <div class="markt-stat-card">
+        <div class="markt-stat-label">Laagste</div>
+        <div class="markt-stat-value">${fmtPrice(low, mktCurrentTicker)}</div>
+      </div>`;
+
   } catch (e) {
-    document.getElementById('marktDetailPrice').textContent = 'Fout bij laden';
+    document.getElementById('marktDetailPrice').textContent = 'Fout';
+    document.getElementById('marktDetailChange').textContent = e.message;
   } finally {
-    loadingEl.style.display = 'none';
+    loadEl.style.display = 'none';
   }
 }
 
-function renderDetailChart(labels, data, isPositive) {
+// ── Chart.js grafiek bouwen ───────────────────────────────────────────────────
+function buildChart(labels, closes, isPos) {
+  if (mktChartInst) { mktChartInst.destroy(); mktChartInst = null; }
   const canvas = document.getElementById('marktChart');
-  if (marktChartInstance) { marktChartInstance.destroy(); marktChartInstance = null; }
+  const color  = isPos ? '#1A7A3A' : '#C8311A';
+  const fill   = isPos ? 'rgba(26,122,58,.10)' : 'rgba(200,49,26,.08)';
+  const cfg    = PERIOD_CONFIG[mktCurrentPeriod] || {};
 
-  const color = isPositive ? '#1A7A3A' : '#C8311A';
-  const fillColor = isPositive ? 'rgba(26,122,58,.10)' : 'rgba(200,49,26,.08)';
-
-  // Format labels nicely
   const fmtLabel = str => {
     try {
       const d = new Date(str);
-      if (currentPeriod === '1day') return d.toLocaleTimeString('nl-BE', {hour:'2-digit',minute:'2-digit'});
-      if (currentPeriod === '1month') return d.toLocaleDateString('nl-BE', {day:'numeric',month:'short'});
-      return d.toLocaleDateString('nl-BE', {month:'short', year:'2-digit'});
+      if (cfg.labelFmt === 'time')  return d.toLocaleTimeString('nl-BE',  { hour:'2-digit', minute:'2-digit' });
+      if (cfg.labelFmt === 'month') return d.toLocaleDateString('nl-BE',  { month:'short', year:'2-digit' });
+      return d.toLocaleDateString('nl-BE', { day:'numeric', month:'short' });
     } catch { return str; }
   };
 
-  marktChartInstance = new Chart(canvas, {
+  mktChartInst = new Chart(canvas, {
     type: 'line',
     data: {
       labels: labels.map(fmtLabel),
-      datasets: [{
-        data,
-        borderColor: color,
-        borderWidth: 2,
-        backgroundColor: fillColor,
-        fill: true,
-        tension: 0.3,
-        pointRadius: 0,
-        pointHitRadius: 8,
+      datasets:[{
+        data: closes,
+        borderColor: color, borderWidth: 2,
+        backgroundColor: fill, fill: true,
+        tension: 0.25, pointRadius: 0, pointHitRadius: 10,
       }]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: {
-        mode: 'index', intersect: false,
-        callbacks: {
-          label: ctx => ' ' + fmtPrice(ctx.parsed.y, currentTicker.symbol)
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: {
+            label: ctx => ' ' + fmtPrice(ctx.parsed.y, mktCurrentTicker)
+          }
         }
-      }},
+      },
       scales: {
-        x: { ticks: { maxTicksLimit: 6, font: { size: 10 }, color: '#9A9690' }, grid: { display: false } },
-        y: { ticks: { font: { size: 10 }, color: '#9A9690' }, grid: { color: 'rgba(150,150,150,.1)' } }
+        x: {
+          ticks: { maxTicksLimit: 6, font: { size: 10, family: 'var(--font-sans)' }, color: 'var(--ink-faint)' },
+          grid: { display: false }, border: { display: false }
+        },
+        y: {
+          position: 'right',
+          ticks: { font: { size: 10, family: 'var(--font-sans)' }, color: 'var(--ink-faint)',
+            callback: v => fmtPrice(v, mktCurrentTicker) },
+          grid: { color: 'rgba(150,150,150,.08)' }, border: { display: false }
+        }
       }
     }
   });
 }
 
-function goBackToList() {
-  document.getElementById('marktDetail').style.display     = 'none';
-  document.getElementById('marktTickerList').style.display = 'block';
-  currentTicker = null;
-  if (marktChartInstance) { marktChartInstance.destroy(); marktChartInstance = null; }
-}
+// ── Zoeken ────────────────────────────────────────────────────────────────────
+async function mktDoSearch() {
+  const raw = document.getElementById('marktSearchInput').value.trim();
+  if (!raw) return;
+  const query = raw.toUpperCase();
 
-// ── Search ────────────────────────────────────────────────────────────────────
-async function marktSearch() {
-  const input = document.getElementById('marktSearchInput').value.trim().toUpperCase();
-  if (!input) return;
+  // Kijk of het al in presets of watchlist zit
+  const all = [...PRESET_TICKERS, ...mktWatchlist];
+  const local = all.find(t => t.symbol === query || t.symbol.replace('/','') === query);
+  if (local) { openDetail(local); return; }
 
-  // Check if already in presets or watchlist
-  const all = [...PRESET_TICKERS, ...marketWatchlist];
-  const found = all.find(t => t.symbol === input || t.td === input);
-  if (found) { openTickerDetail(found); return; }
-
-  // Try fetching as new ticker
-  const newTicker = { symbol: input, name: input, td: input, type: 'unknown' };
+  // Zoek via symbol_search
   try {
-    const data = await fetchQuote(newTicker);
-    if (data.name) newTicker.name = data.name;
-    openTickerDetail(newTicker);
-  } catch {
-    alert(`Ticker "${input}" niet gevonden. Controleer het symbool.`);
+    const res = await mktFetch('symbol_search', { symbol: raw, outputsize: 5 });
+    if (!res.data || res.data.length === 0) {
+      showSearchError(`"${raw}" niet gevonden. Probeer bijv. AAPL, MSFT, BTC/USD.`);
+      return;
+    }
+    const hit = res.data[0];
+    const newTicker = {
+      symbol:   hit.symbol,
+      name:     hit.instrument_name || hit.symbol,
+      type:     (hit.instrument_type || 'stock').toLowerCase(),
+      decimals: hit.instrument_type === 'Digital Currency' ? 2 : 2,
+      prefix:   '',
+      suffix:   '',
+    };
+    openDetail(newTicker);
+  } catch (e) {
+    showSearchError('Zoeken mislukt: ' + e.message);
   }
 }
 
-// ── Watchlist ─────────────────────────────────────────────────────────────────
-function toggleWatchlist() {
-  if (!currentTicker) return;
-  const idx = marketWatchlist.findIndex(w => w.symbol === currentTicker.symbol);
-  if (idx >= 0) {
-    marketWatchlist.splice(idx, 1);
-  } else {
-    marketWatchlist.push({ ...currentTicker });
-  }
-  localStorage.setItem('debrief_watchlist', JSON.stringify(marketWatchlist));
-  updateWatchlistBtn();
-}
-
-// ── Init markt tab ────────────────────────────────────────────────────────────
-function initMarktTab() {
-  if (marktActive) return;
-  marktActive = true;
-
-  // Load Chart.js if not already loaded
-  if (!window.Chart) {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-    script.onload = renderTickerList;
-    document.head.appendChild(script);
-  } else {
-    renderTickerList();
-  }
+function showSearchError(msg) {
+  const el = document.getElementById('marktSearchError');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
 document.getElementById('marktBackBtn').addEventListener('click', () => {
-  goBackToList();
+  showListPanel();
   renderTickerList();
 });
 
-document.getElementById('marktWatchlistBtn').addEventListener('click', toggleWatchlist);
+document.getElementById('marktWatchlistBtn').addEventListener('click', () => {
+  if (!mktCurrentTicker) return;
+  if (wlHas(mktCurrentTicker.symbol)) wlRemove(mktCurrentTicker.symbol);
+  else wlAdd(mktCurrentTicker);
+  updateWatchlistBtn();
+});
 
-document.getElementById('marktSearchBtn').addEventListener('click', marktSearch);
+document.getElementById('marktSearchBtn').addEventListener('click', mktDoSearch);
 document.getElementById('marktSearchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') marktSearch();
+  if (e.key === 'Enter') mktDoSearch();
+  document.getElementById('marktSearchError').style.display = 'none';
 });
 
 document.getElementById('marktTickerList').addEventListener('click', e => {
-  // Remove from watchlist
-  const removeBtn = e.target.closest('[data-remove]');
-  if (removeBtn) {
-    e.stopPropagation();
-    const sym = removeBtn.dataset.remove;
-    marketWatchlist = marketWatchlist.filter(w => w.symbol !== sym);
-    localStorage.setItem('debrief_watchlist', JSON.stringify(marketWatchlist));
-    renderTickerList();
-    return;
-  }
-  // Open detail
+  const rm = e.target.closest('[data-remove]');
+  if (rm) { e.stopPropagation(); wlRemove(rm.dataset.remove); renderTickerList(); return; }
   const row = e.target.closest('.markt-ticker-row');
   if (!row) return;
   const sym = row.dataset.symbol;
-  const all = [...PRESET_TICKERS, ...marketWatchlist];
+  const all = [...PRESET_TICKERS, ...mktWatchlist];
   const ticker = all.find(t => t.symbol === sym);
-  if (ticker) openTickerDetail(ticker);
+  if (ticker) openDetail(ticker);
 });
 
 document.getElementById('marktPeriodRow').addEventListener('click', async e => {
   const btn = e.target.closest('.markt-period');
   if (!btn) return;
-  currentPeriod = btn.dataset.period;
+  mktCurrentPeriod = btn.dataset.period;
   document.querySelectorAll('.markt-period').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-
-  if (currentPeriod === 'custom') {
+  if (mktCurrentPeriod === 'custom') {
     document.getElementById('marktCustomDates').style.display = 'flex';
     return;
   }
   document.getElementById('marktCustomDates').style.display = 'none';
-  await loadDetailChart();
+  await loadChart();
 });
 
 document.getElementById('marktDateApply').addEventListener('click', async () => {
   const from = document.getElementById('marktDateFrom').value;
   const to   = document.getElementById('marktDateTo').value;
   if (!from || !to) return;
-  await loadDetailChart(from, to);
+  await loadChart(from, to);
 });
 
-// ── Tab switching (extend existing tab handler) ───────────────────────────────
-const _origCatClick = document.getElementById('catTabs').onclick;
+// ── Tab switching ─────────────────────────────────────────────────────────────
 document.getElementById('catTabs').addEventListener('click', e => {
   const b = e.target.closest('.tab');
   if (!b) return;
-  const tab = b.dataset.tab;
-  const panel = document.getElementById('marktPanel');
-  const feed  = document.getElementById('feedContainer');
-  const header = document.querySelector('.source-row-wrap');
+  const tab    = b.dataset.tab;
+  const panel  = document.getElementById('marktPanel');
+  const feed   = document.getElementById('feedContainer');
+  const srcRow = document.querySelector('.source-row-wrap');
 
   if (tab === 'markt') {
     panel.style.display = 'block';
     feed.style.display  = 'none';
-    if (header) header.style.display = 'none';
-    initMarktTab();
+    if (srcRow) srcRow.style.display = 'none';
+    if (!mktInited) {
+      mktInited = true;
+      if (!window.Chart) {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+        s.onload = () => { wlLoad(); renderTickerList(); };
+        document.head.appendChild(s);
+      } else { wlLoad(); renderTickerList(); }
+    }
   } else {
     panel.style.display = 'none';
     feed.style.display  = 'block';
-    if (header) header.style.display = '';
-    if (marktChartInstance) { marktChartInstance.destroy(); marktChartInstance = null; }
-    marktActive = false;
+    if (srcRow) srcRow.style.display = '';
+    if (mktChartInst) { mktChartInst.destroy(); mktChartInst = null; }
   }
 });
 
