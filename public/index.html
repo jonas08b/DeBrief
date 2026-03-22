@@ -462,7 +462,7 @@
 
   /* Chart */
   .markt-chart-wrap {
-    position: relative; background: var(--bg-card);
+    position: relative; background: transparent;
     border: 1px solid var(--border); border-radius: 10px;
     overflow: hidden; margin-bottom: 16px; height: 300px;
   }
@@ -1523,7 +1523,7 @@ function buildTVWidget(tvSymbol, period) {
     range:               cfg.range,
     timezone:            'Europe/Brussels',
     theme:               dark ? 'dark' : 'light',
-    style:               '3',
+    style:               '2',
     locale:              'nl_BE',
     hide_top_toolbar:    true,
     hide_legend:         true,
@@ -1531,6 +1531,7 @@ function buildTVWidget(tvSymbol, period) {
     withdateranges:      false,
     save_image:          false,
     allow_symbol_change: false,
+    isTransparent:       true,
     support_host:        'https://www.tradingview.com',
   });
 
