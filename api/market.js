@@ -1,4 +1,4 @@
-// api/market.js — DeBrief Markt proxy v3
+// api/market.js — DeBrief Markt proxy v4
 // Grafieken → TradingView widget (geen candle endpoints meer nodig)
 // Enkel quotes voor de tickerlijst prijzen + % change
 //
@@ -8,6 +8,7 @@
 // US10Y    → FRED API            (gratis, key vereist)
 // JPM      → Alpha Vantage       (gratis, key vereist)
 // URTH     → Alpha Vantage       (gratis, key vereist)
+// Search   → Alpha Vantage SYMBOL_SEARCH (gratis, key vereist)
 
 const FRED_KEY = process.env.FRED_API_KEY;
 const AV_KEY   = process.env.ALPHAVANTAGE_API_KEY;
@@ -37,6 +38,13 @@ async function fetchJSON(url, headers = {}) {
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`HTTP ${res.status} voor ${url}`);
   return res.json();
+}
+
+// Alpha Vantage geeft 200 OK terug bij rate-limiting, met een Note of Information veld
+function avCheckRateLimit(data) {
+  if (data?.Note || data?.Information) {
+    throw new Error('Alpha Vantage rate limit bereikt — probeer later opnieuw');
+  }
 }
 
 // ── Quotes ────────────────────────────────────────────────────────────────────
@@ -73,6 +81,7 @@ async function quoteWTI() {
     const data = await fetchJSON(
       `https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`
     );
+    avCheckRateLimit(data);
     const series = data?.data;
     if (!series?.length) throw new Error('Geen BRENT data van Alpha Vantage');
     const price     = parseFloat(series[0].value);
@@ -101,6 +110,7 @@ async function quoteAV(symbol) {
     const data = await fetchJSON(
       `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${AV_KEY}`
     );
+    avCheckRateLimit(data);
     const q = data['Global Quote'];
     if (!q?.['05. price']) throw new Error(`Geen AV data voor ${symbol}`);
     return {
@@ -113,7 +123,6 @@ async function quoteAV(symbol) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PCT ENDPOINT — geeft alleen { dp } terug (% verandering over periode)
-// Gebruikt minimale data: enkel startdatum + meest recente waarde
 // ─────────────────────────────────────────────────────────────────────────────
 
 function periodToStartDate(period) {
@@ -143,6 +152,7 @@ async function pctXAUUSD(period) {
     const data = await fetchJSON(
       `https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=XAU&to_symbol=USD&outputsize=full&apikey=${AV_KEY}`
     );
+    avCheckRateLimit(data);
     return pctFromAVSeries(data['Time Series FX (Daily)'], startDate, '4. close');
   });
 }
@@ -153,6 +163,7 @@ async function pctWTI(period) {
     const data = await fetchJSON(
       `https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`
     );
+    avCheckRateLimit(data);
     const startDate = periodToStartDate(period);
     const series = (data?.data || [])
       .filter(e => e.date >= startDate && e.value !== '.')
@@ -186,6 +197,7 @@ async function pctAV(symbol, period) {
     const data = await fetchJSON(
       `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${AV_KEY}`
     );
+    avCheckRateLimit(data);
     return pctFromAVSeries(data['Time Series (Daily)'], startDate, '4. close');
   });
 }
@@ -199,6 +211,28 @@ function pctFromAVSeries(ts, startDate, closeKey) {
   const first = parseFloat(entries[0][1][closeKey]);
   const last  = parseFloat(entries[entries.length - 1][1][closeKey]);
   return { dp: ((last - first) / first) * 100 };
+}
+
+// ── Symbol search via Alpha Vantage ──────────────────────────────────────────
+// Vervangt TradingView symbol search (die blokkeert server-side requests met 403)
+async function searchSymbols(q) {
+  return cached(`search_${q.toLowerCase()}`, async () => {
+    if (!AV_KEY) throw new Error('ALPHAVANTAGE_API_KEY niet ingesteld');
+    const data = await fetchJSON(
+      `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(q)}&apikey=${AV_KEY}`
+    );
+    avCheckRateLimit(data);
+    const bestMatches = data?.bestMatches || [];
+    const hits = bestMatches.slice(0, 8).map(m => ({
+      symbol:    m['1. symbol'],
+      // TradingView lost bare symbolen automatisch op; geen exchange-prefix nodig
+      full_name: m['1. symbol'],
+      name:      m['2. name'],
+      exchange:  m['4. region'],
+      type:      m['3. type'],
+    }));
+    return { hits };
+  });
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -215,30 +249,21 @@ export default async function handler(req, res) {
         case 'XAUUSD': data = await quoteXAUUSD();   break;
         case 'WTI':    data = await quoteWTI();       break;
         case 'US10Y':  data = await quoteUS10Y();     break;
-        default:       data = await quoteAV(symbol);  break; // AAPL, MSFT, etc.
+        default:       data = await quoteAV(symbol);  break;
       }
     } else if (endpoint === 'pct') {
       const p = period || '1month';
       switch (symbol) {
-        case 'EURUSD': data = await pctEURUSD(p);       break;
-        case 'XAUUSD': data = await pctXAUUSD(p);       break;
-        case 'WTI':    data = await pctWTI(p);           break;
-        case 'US10Y':  data = await pctUS10Y(p);         break;
-        default:       data = await pctAV(symbol, p);   break; // elk aandeel
+        case 'EURUSD': data = await pctEURUSD(p);     break;
+        case 'XAUUSD': data = await pctXAUUSD(p);     break;
+        case 'WTI':    data = await pctWTI(p);         break;
+        case 'US10Y':  data = await pctUS10Y(p);       break;
+        default:       data = await pctAV(symbol, p); break;
       }
     } else if (endpoint === 'search') {
-      const q      = req.query.q || '';
-      const result = await fetchJSON(
-        `https://symbol-search.tradingview.com/symbol_search/v3/?text=${encodeURIComponent(q)}&type=&exchange=&lang=nl_BE`
-      );
-      const hits = (result.symbols || []).slice(0, 8).map(s => ({
-        symbol:    s.symbol,
-        full_name: s.full_name,
-        name:      s.description || s.symbol,
-        exchange:  s.exchange,
-        type:      s.type,
-      }));
-      data = { hits };
+      const q = req.query.q || '';
+      if (!q.trim()) throw new Error('Zoekterm ontbreekt');
+      data = await searchSymbols(q.trim());
     } else {
       throw new Error(`Onbekend endpoint: ${endpoint}`);
     }
