@@ -227,16 +227,16 @@ export default async function handler(req, res) {
         default:       data = await pctAV(symbol, p);   break; // elk aandeel
       }
     } else if (endpoint === 'search') {
-      if (!AV_KEY) throw new Error('ALPHAVANTAGE_API_KEY niet ingesteld');
       const q      = req.query.q || '';
       const result = await fetchJSON(
-        `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(q)}&apikey=${AV_KEY}`
+        `https://symbol-search.tradingview.com/symbol_search/v3/?text=${encodeURIComponent(q)}&type=&exchange=&lang=nl_BE`
       );
-      const hits = (result.bestMatches || []).map(m => ({
-        symbol:   m['1. symbol'],
-        name:     m['2. name'],
-        type:     m['3. type'],
-        exchange: m['4. region'],
+      const hits = (result.symbols || []).slice(0, 8).map(s => ({
+        symbol:    s.symbol,
+        full_name: s.full_name,
+        name:      s.description || s.symbol,
+        exchange:  s.exchange,
+        type:      s.type,
       }));
       data = { hits };
     } else {
