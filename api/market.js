@@ -1,37 +1,49 @@
-// api/market.js — DeBrief Markt proxy v4
-// Grafieken → TradingView widget (geen candle endpoints meer nodig)
-// Enkel quotes voor de tickerlijst prijzen + % change
+// api/market.js — DeBrief Markt proxy v5
 //
 // EUR/USD  → frankfurter.app    (gratis, geen key)
 // XAU/USD  → gold-api.com       (gratis, geen key)
 // WTI      → Alpha Vantage BRENT (gratis, key vereist)
 // US10Y    → FRED API            (gratis, key vereist)
-// JPM      → Alpha Vantage       (gratis, key vereist)
-// URTH     → Alpha Vantage       (gratis, key vereist)
+// Aandelen → Alpha Vantage       (gratis, key vereist)
 // Search   → Alpha Vantage SYMBOL_SEARCH (gratis, key vereist)
+//
+// Cache-strategie:
+//   1. Vercel Edge Cache-Control headers → CDN cached per endpoint+symbol
+//   2. In-memory stale-while-revalidate → bij AV rate-limit stale data teruggeven
 
 const FRED_KEY = process.env.FRED_API_KEY;
 const AV_KEY   = process.env.ALPHAVANTAGE_API_KEY;
 
-// ── In-memory server-side cache (15 min) ──────────────────────────────────────
+// ── In-memory cache (stale-while-revalidate) ──────────────────────────────────
 const CACHE     = {};
-const CACHE_TTL = 15 * 60 * 1000;
+const FRESH_TTL = 5  * 60 * 1000;  //  5 min: fresh data
+const STALE_TTL = 60 * 60 * 1000;  // 60 min: stale maar bruikbaar bij fout
 
 function cacheGet(key) {
   const e = CACHE[key];
-  if (!e) return null;
-  if (Date.now() - e.ts > CACHE_TTL) { delete CACHE[key]; return null; }
-  return e.data;
+  if (!e) return { fresh: null, stale: null };
+  const age = Date.now() - e.ts;
+  if (age > STALE_TTL) { delete CACHE[key]; return { fresh: null, stale: null }; }
+  if (age > FRESH_TTL) return { fresh: null, stale: e.data };
+  return { fresh: e.data, stale: e.data };
 }
 function cacheSet(key, data) {
   CACHE[key] = { data, ts: Date.now() };
   return data;
 }
 async function cached(key, fn) {
-  const hit = cacheGet(key);
-  if (hit) return hit;
-  const data = await fn();
-  return cacheSet(key, data);
+  const { fresh, stale } = cacheGet(key);
+  if (fresh) return fresh;
+  try {
+    const data = await fn();
+    return cacheSet(key, data);
+  } catch (err) {
+    if (stale) {
+      console.warn(`[market] Stale data voor ${key}: ${err.message}`);
+      return { ...stale, stale: true };
+    }
+    throw err;
+  }
 }
 
 async function fetchJSON(url, headers = {}) {
@@ -40,10 +52,9 @@ async function fetchJSON(url, headers = {}) {
   return res.json();
 }
 
-// Alpha Vantage geeft 200 OK terug bij rate-limiting, met een Note of Information veld
 function avCheckRateLimit(data) {
   if (data?.Note || data?.Information) {
-    throw new Error('Alpha Vantage rate limit bereikt — probeer later opnieuw');
+    throw new Error('Alpha Vantage rate limit');
   }
 }
 
@@ -83,7 +94,7 @@ async function quoteWTI() {
     );
     avCheckRateLimit(data);
     const series = data?.data;
-    if (!series?.length) throw new Error('Geen BRENT data van Alpha Vantage');
+    if (!series?.length) throw new Error('Geen BRENT data');
     const price     = parseFloat(series[0].value);
     const prevClose = parseFloat(series[1]?.value || series[0].value);
     return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
@@ -97,7 +108,7 @@ async function quoteUS10Y() {
       `https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key=${FRED_KEY}&file_type=json&sort_order=desc&limit=5`
     );
     const obs = data.observations?.filter(o => o.value !== '.');
-    if (!obs?.length) throw new Error('Geen US10Y data van FRED');
+    if (!obs?.length) throw new Error('Geen US10Y data');
     const price     = parseFloat(obs[0].value);
     const prevClose = parseFloat(obs[1]?.value || obs[0].value);
     return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
@@ -112,7 +123,7 @@ async function quoteAV(symbol) {
     );
     avCheckRateLimit(data);
     const q = data['Global Quote'];
-    if (!q?.['05. price']) throw new Error(`Geen AV data voor ${symbol}`);
+    if (!q?.['05. price']) throw new Error(`Geen data voor ${symbol}`);
     return {
       c:  parseFloat(q['05. price']),
       pc: parseFloat(q['08. previous close']),
@@ -121,9 +132,7 @@ async function quoteAV(symbol) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PCT ENDPOINT — geeft alleen { dp } terug (% verandering over periode)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── PCT ───────────────────────────────────────────────────────────────────────
 
 function periodToStartDate(period) {
   const daysMap = { '1month': 35, '6month': 185, '1year': 370 };
@@ -213,8 +222,7 @@ function pctFromAVSeries(ts, startDate, closeKey) {
   return { dp: ((last - first) / first) * 100 };
 }
 
-// ── Symbol search via Alpha Vantage ──────────────────────────────────────────
-// Vervangt TradingView symbol search (die blokkeert server-side requests met 403)
+// ── Symbol search ─────────────────────────────────────────────────────────────
 async function searchSymbols(q) {
   return cached(`search_${q.toLowerCase()}`, async () => {
     if (!AV_KEY) throw new Error('ALPHAVANTAGE_API_KEY niet ingesteld');
@@ -222,10 +230,8 @@ async function searchSymbols(q) {
       `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(q)}&apikey=${AV_KEY}`
     );
     avCheckRateLimit(data);
-    const bestMatches = data?.bestMatches || [];
-    const hits = bestMatches.slice(0, 8).map(m => ({
+    const hits = (data?.bestMatches || []).slice(0, 8).map(m => ({
       symbol:    m['1. symbol'],
-      // TradingView lost bare symbolen automatisch op; geen exchange-prefix nodig
       full_name: m['1. symbol'],
       name:      m['2. name'],
       exchange:  m['4. region'],
@@ -238,6 +244,11 @@ async function searchSymbols(q) {
 // ── Handler ───────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+
+  // Vercel Edge Cache: 5 min fresh, 10 min stale-while-revalidate
+  // Voorkomt dat elke gebruiker/cold-start een nieuwe AV-call triggert
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+
   const { endpoint, symbol, period } = req.query;
 
   try {
@@ -271,6 +282,7 @@ export default async function handler(req, res) {
     res.status(200).json(data);
   } catch (err) {
     console.error('[market proxy]', err.message);
+    res.setHeader('Cache-Control', 'no-store');
     res.status(500).json({ error: err.message });
   }
 }
