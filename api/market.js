@@ -111,26 +111,129 @@ async function quoteAV(symbol) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PCT ENDPOINT — geeft alleen { dp } terug (% verandering over periode)
+// Gebruikt minimale data: enkel startdatum + meest recente waarde
+// ─────────────────────────────────────────────────────────────────────────────
+
+function periodToStartDate(period) {
+  const daysMap = { '1month': 35, '6month': 185, '1year': 370 };
+  const days    = daysMap[period] || 35;
+  const d       = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split('T')[0];
+}
+
+async function pctEURUSD(period) {
+  return cached(`pct_eurusd_${period}`, async () => {
+    const startDate = periodToStartDate(period);
+    const data = await fetchJSON(`https://api.frankfurter.app/${startDate}..?from=EUR&to=USD`);
+    const entries = Object.entries(data.rates || {}).sort(([a],[b]) => a.localeCompare(b));
+    if (entries.length < 2) return { dp: null };
+    const first = entries[0][1].USD;
+    const last  = entries[entries.length - 1][1].USD;
+    return { dp: ((last - first) / first) * 100 };
+  });
+}
+
+async function pctXAUUSD(period) {
+  return cached(`pct_xauusd_${period}`, async () => {
+    if (!AV_KEY) return { dp: null };
+    const startDate = periodToStartDate(period);
+    const data = await fetchJSON(
+      `https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=XAU&to_symbol=USD&outputsize=full&apikey=${AV_KEY}`
+    );
+    return pctFromAVSeries(data['Time Series FX (Daily)'], startDate, '4. close');
+  });
+}
+
+async function pctWTI(period) {
+  return cached(`pct_wti_${period}`, async () => {
+    if (!AV_KEY) return { dp: null };
+    const data = await fetchJSON(
+      `https://www.alphavantage.co/query?function=BRENT&interval=daily&apikey=${AV_KEY}`
+    );
+    const startDate = periodToStartDate(period);
+    const series = (data?.data || [])
+      .filter(e => e.date >= startDate && e.value !== '.')
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (series.length < 2) return { dp: null };
+    const first = parseFloat(series[0].value);
+    const last  = parseFloat(series[series.length - 1].value);
+    return { dp: ((last - first) / first) * 100 };
+  });
+}
+
+async function pctUS10Y(period) {
+  return cached(`pct_us10y_${period}`, async () => {
+    if (!FRED_KEY) return { dp: null };
+    const startDate = periodToStartDate(period);
+    const data = await fetchJSON(
+      `https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key=${FRED_KEY}&file_type=json&observation_start=${startDate}&sort_order=asc`
+    );
+    const obs = (data.observations || []).filter(o => o.value !== '.');
+    if (obs.length < 2) return { dp: null };
+    const first = parseFloat(obs[0].value);
+    const last  = parseFloat(obs[obs.length - 1].value);
+    return { dp: ((last - first) / first) * 100 };
+  });
+}
+
+async function pctAV(symbol, period) {
+  return cached(`pct_av_${symbol}_${period}`, async () => {
+    if (!AV_KEY) return { dp: null };
+    const startDate = periodToStartDate(period);
+    const data = await fetchJSON(
+      `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${AV_KEY}`
+    );
+    return pctFromAVSeries(data['Time Series (Daily)'], startDate, '4. close');
+  });
+}
+
+function pctFromAVSeries(ts, startDate, closeKey) {
+  if (!ts) return { dp: null };
+  const entries = Object.entries(ts)
+    .filter(([d]) => d >= startDate)
+    .sort(([a],[b]) => a.localeCompare(b));
+  if (entries.length < 2) return { dp: null };
+  const first = parseFloat(entries[0][1][closeKey]);
+  const last  = parseFloat(entries[entries.length - 1][1][closeKey]);
+  return { dp: ((last - first) / first) * 100 };
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  const { endpoint, symbol } = req.query;
-
-  if (endpoint !== 'quote') {
-    return res.status(400).json({ error: 'Enkel quote endpoint beschikbaar' });
-  }
+  const { endpoint, symbol, period } = req.query;
 
   try {
     let data;
-    switch (symbol) {
-      case 'EURUSD': data = await quoteEURUSD();   break;
-      case 'XAUUSD': data = await quoteXAUUSD();   break;
-      case 'WTI':    data = await quoteWTI();       break;
-      case 'US10Y':  data = await quoteUS10Y();     break;
-      case 'JPM':    data = await quoteAV('JPM');   break;
-      case 'URTH':   data = await quoteAV('URTH');  break;
-      default: throw new Error(`Onbekend symbool: ${symbol}`);
+
+    if (endpoint === 'quote') {
+      switch (symbol) {
+        case 'EURUSD': data = await quoteEURUSD();   break;
+        case 'XAUUSD': data = await quoteXAUUSD();   break;
+        case 'WTI':    data = await quoteWTI();       break;
+        case 'US10Y':  data = await quoteUS10Y();     break;
+        case 'JPM':    data = await quoteAV('JPM');   break;
+        case 'URTH':   data = await quoteAV('URTH');  break;
+        default: throw new Error(`Onbekend symbool: ${symbol}`);
+      }
+    } else if (endpoint === 'pct') {
+      const p = period || '1month';
+      switch (symbol) {
+        case 'EURUSD': data = await pctEURUSD(p);        break;
+        case 'XAUUSD': data = await pctXAUUSD(p);        break;
+        case 'WTI':    data = await pctWTI(p);            break;
+        case 'US10Y':  data = await pctUS10Y(p);          break;
+        case 'JPM':    data = await pctAV('JPM', p);      break;
+        case 'URTH':   data = await pctAV('URTH', p);     break;
+        default: throw new Error(`Onbekend symbool: ${symbol}`);
+      }
+    } else {
+      throw new Error(`Onbekend endpoint: ${endpoint}`);
     }
+
     res.status(200).json(data);
   } catch (err) {
     console.error('[market proxy]', err.message);
