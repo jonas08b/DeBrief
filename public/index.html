@@ -1367,8 +1367,8 @@ function mktCacheFlush() {
 function mktCacheGet(key) {
   const s = mktCacheLoad();
   const e = s[key];
-  if (!e || Date.now() - e.ts > MKT_CACHE_TTL) return null;
-  return e.data;
+  if (!e || Date.now() - e.ts > MKT_CACHE_TTL) return undefined;
+  return e.data; // kan null zijn (error sentinel) of echte data
 }
 function mktCacheSet(key, data) {
   const s   = mktCacheLoad();
@@ -1377,17 +1377,37 @@ function mktCacheSet(key, data) {
   s[key] = { data, ts: now };
   mktCacheFlush();
 }
+function mktCacheSetWithTTL(key, data, ttl) {
+  // Sla op met een timestamp die al deels verouderd is zodat de echte TTL korter is
+  const s = mktCacheLoad();
+  s[key] = { data, ts: Date.now() - (MKT_CACHE_TTL - ttl) };
+  mktCacheFlush();
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
+const MKT_ERROR_TTL = 60 * 1000; // 1 min: hammer-beveiliging bij fouten
+
 async function mktFetch(endpoint, params) {
   const key    = endpoint + '|' + JSON.stringify(params);
   const cached = mktCacheGet(key);
-  if (cached) return cached;
+  if (cached !== undefined) {
+    // null = error sentinel (kort gecached), gooi fout zodat UI N/B toont
+    if (cached === null) throw new Error('Tijdelijk niet beschikbaar');
+    return cached;
+  }
+
   const qs  = new URLSearchParams({ endpoint, ...params }).toString();
   const res = await fetch(`${MARKET_API}?${qs}`, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    mktCacheSetWithTTL(key, null, MKT_ERROR_TTL);
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
   const data = await res.json();
-  if (data.error) throw new Error(data.error);
+  if (data.error) {
+    mktCacheSetWithTTL(key, null, MKT_ERROR_TTL);
+    throw new Error(data.error);
+  }
   mktCacheSet(key, data);
   return data;
 }
