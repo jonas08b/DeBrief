@@ -1,61 +1,8 @@
-// api/market.js — Vercel proxy voor Yahoo Finance
-// Geen API key nodig — Yahoo Finance is gratis
+// api/market.js — Vercel proxy via yahoo-finance2 npm package
+// Installeer: npm install yahoo-finance2
+// Geen API key nodig
 
-const YF_BASE = 'https://query1.finance.yahoo.com';
-const YF_BASE2 = 'https://query2.finance.yahoo.com';
-
-// Cookie + crumb cache (per serverless instantie)
-let _cookie = null;
-let _crumb  = null;
-let _cookieTs = 0;
-const COOKIE_TTL = 25 * 60 * 1000; // 25 min (Yahoo cookies verlopen ~30 min)
-
-async function getCookieAndCrumb() {
-  if (_cookie && _crumb && Date.now() - _cookieTs < COOKIE_TTL) {
-    return { cookie: _cookie, crumb: _crumb };
-  }
-
-  // Stap 1: haal cookie op via consent pagina
-  const consentRes = await fetch('https://fc.yahoo.com', {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-    redirect: 'follow',
-  });
-  const cookieHeader = consentRes.headers.get('set-cookie') || '';
-  const cookieMatch  = cookieHeader.match(/A1=([^;]+)/);
-  const a1Cookie     = cookieMatch ? `A1=${cookieMatch[1]}` : '';
-
-  // Stap 2: haal crumb op
-  const crumbRes = await fetch(`${YF_BASE2}/v1/test/getcrumb`, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      'Cookie': a1Cookie,
-    },
-  });
-  const crumb = (await crumbRes.text()).trim();
-
-  if (crumb && crumb !== 'null' && !crumb.includes('<')) {
-    _cookie   = a1Cookie;
-    _crumb    = crumb;
-    _cookieTs = Date.now();
-    return { cookie: _cookie, crumb: _crumb };
-  }
-
-  // Fallback: probeer zonder crumb (werkt voor chart endpoint)
-  return { cookie: a1Cookie, crumb: '' };
-}
-
-async function yfFetch(url, cookie) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
-      'Cookie': cookie || '',
-    },
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`Yahoo Finance ${res.status}`);
-  return res.json();
-}
+import yahooFinance from 'yahoo-finance2';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -65,31 +12,78 @@ export default async function handler(req, res) {
   const { endpoint, ...params } = req.query;
 
   try {
-    const { cookie, crumb } = await getCookieAndCrumb();
     let data;
 
     if (endpoint === 'quote') {
-      // Batch quotes: symbols=EURUSD=X,GC=F,...
-      const url = `${YF_BASE2}/v7/finance/quote?symbols=${encodeURIComponent(params.symbols)}&crumb=${encodeURIComponent(crumb)}&formatted=false&lang=en-US`;
-      const raw = await yfFetch(url, cookie);
-      // Geef enkel de quote array terug
-      data = raw?.quoteResponse?.result || [];
+      // Batch: symbols=EURUSD=X,GC=F,...
+      const symbols = params.symbols.split(',').map(s => s.trim());
+      const results = await Promise.all(
+        symbols.map(sym =>
+          yahooFinance.quote(sym, {}, { validateResult: false })
+            .then(q => ({
+              symbol: sym,
+              regularMarketPrice:         q.regularMarketPrice,
+              regularMarketChangePercent: q.regularMarketChangePercent,
+              regularMarketChange:        q.regularMarketChange,
+              shortName:                  q.shortName || q.longName || sym,
+              currency:                   q.currency,
+              marketState:                q.marketState,
+            }))
+            .catch(() => ({ symbol: sym, error: true }))
+        )
+      );
+      data = results;
 
     } else if (endpoint === 'chart') {
-      // Chart: historische data
-      const sym = params.symbol;
-      let url;
-      if (params.range === 'custom') {
-        url = `${YF_BASE2}/v8/finance/chart/${encodeURIComponent(sym)}?period1=${params.period1}&period2=${params.period2}&interval=${params.interval}&events=div,splits`;
+      // Historische data
+      const sym      = params.symbol;
+      const interval = params.interval || '1d';
+      const range    = params.range;
+
+      let period1, period2;
+      if (range === 'custom') {
+        period1 = new Date(params.period1 * 1000);
+        period2 = new Date(params.period2 * 1000);
       } else {
-        url = `${YF_BASE2}/v8/finance/chart/${encodeURIComponent(sym)}?range=${params.range}&interval=${params.interval}&events=div,splits`;
+        const rangeMap = {
+          '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, '1y': 365
+        };
+        const days = rangeMap[range] || 30;
+        period2 = new Date();
+        period1 = new Date(Date.now() - days * 86400000);
       }
-      data = await yfFetch(url, cookie);
+
+      const intervalMap = {
+        '1m':'1m','2m':'2m','5m':'5m','15m':'15m','30m':'30m',
+        '60m':'60m','1h':'60m','1d':'1d','1wk':'1wk','1mo':'1mo'
+      };
+
+      const result = await yahooFinance.chart(sym, {
+        period1,
+        period2,
+        interval: intervalMap[interval] || '1d',
+      }, { validateResult: false });
+
+      // Formatteer naar zelfde structuur als v8/finance/chart
+      data = {
+        chart: {
+          result: [{
+            timestamp: result.quotes.map(q => Math.floor(new Date(q.date).getTime() / 1000)),
+            indicators: {
+              quote: [{
+                close: result.quotes.map(q => q.close),
+                open:  result.quotes.map(q => q.open),
+                high:  result.quotes.map(q => q.high),
+                low:   result.quotes.map(q => q.low),
+              }]
+            }
+          }]
+        }
+      };
 
     } else if (endpoint === 'search') {
-      // Ticker zoeken
-      const url = `${YF_BASE2}/v1/finance/search?q=${encodeURIComponent(params.q)}&quotesCount=6&newsCount=0&enableFuzzyQuery=false`;
-      data = await yfFetch(url, cookie);
+      const results = await yahooFinance.search(params.q, { quotesCount: 6, newsCount: 0 }, { validateResult: false });
+      data = results;
 
     } else {
       return res.status(400).json({ error: `Onbekend endpoint: ${endpoint}` });
@@ -99,6 +93,7 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (err) {
+    console.error('Market API error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
