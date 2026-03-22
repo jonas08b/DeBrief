@@ -1,8 +1,24 @@
-// api/market.js — Vercel proxy via yahoo-finance2 npm package
-// Installeer: npm install yahoo-finance2
-// Geen API key nodig
+// api/market.js — Yahoo Finance v8/finance/chart only
+// Geen npm packages, geen cookie/crumb — chart endpoint werkt zonder auth
 
-import yahooFinance from 'yahoo-finance2';
+const YF = 'https://query2.finance.yahoo.com/v8/finance/chart';
+
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
+async function chartFetch(symbol, params) {
+  const qs  = new URLSearchParams(params).toString();
+  const url = `${YF}/${encodeURIComponent(symbol)}?${qs}`;
+  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`Yahoo ${res.status} for ${symbol}`);
+  const data = await res.json();
+  const err  = data?.chart?.error;
+  if (err) throw new Error(err.description || err.code || 'Yahoo error');
+  return data;
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,75 +31,56 @@ export default async function handler(req, res) {
     let data;
 
     if (endpoint === 'quote') {
-      // Batch: symbols=EURUSD=X,GC=F,...
+      // Haal per symbool de huidige prijs op via chart met range=1d
+      // meta.regularMarketPrice bevat de actuele prijs — geen crumb nodig
       const symbols = params.symbols.split(',').map(s => s.trim());
-      const results = await Promise.all(
-        symbols.map(sym =>
-          yahooFinance.quote(sym, {}, { validateResult: false })
-            .then(q => ({
-              symbol: sym,
-              regularMarketPrice:         q.regularMarketPrice,
-              regularMarketChangePercent: q.regularMarketChangePercent,
-              regularMarketChange:        q.regularMarketChange,
-              shortName:                  q.shortName || q.longName || sym,
-              currency:                   q.currency,
-              marketState:                q.marketState,
-            }))
-            .catch(() => ({ symbol: sym, error: true }))
-        )
-      );
+
+      const results = await Promise.all(symbols.map(async sym => {
+        try {
+          const raw    = await chartFetch(sym, { range: '1d', interval: '5m', includePrePost: false });
+          const meta   = raw.chart.result[0].meta;
+          return {
+            symbol:                     sym,
+            regularMarketPrice:         meta.regularMarketPrice,
+            regularMarketChangePercent: meta.regularMarketChangePercent ?? percentChange(meta),
+            previousClose:              meta.previousClose ?? meta.chartPreviousClose,
+            currency:                   meta.currency,
+            shortName:                  meta.longName || meta.shortName || sym,
+          };
+        } catch (e) {
+          return { symbol: sym, error: true, message: e.message };
+        }
+      }));
+
       data = results;
 
     } else if (endpoint === 'chart') {
-      // Historische data
-      const sym      = params.symbol;
-      const interval = params.interval || '1d';
-      const range    = params.range;
+      const sym = params.symbol;
+      let chartParams;
 
-      let period1, period2;
-      if (range === 'custom') {
-        period1 = new Date(params.period1 * 1000);
-        period2 = new Date(params.period2 * 1000);
-      } else {
-        const rangeMap = {
-          '1d': 1, '5d': 5, '1mo': 30, '3mo': 90, '6mo': 180, '1y': 365
+      if (params.range === 'custom') {
+        chartParams = {
+          period1:        params.period1,
+          period2:        params.period2,
+          interval:       params.interval || '1d',
+          includePrePost: false,
         };
-        const days = rangeMap[range] || 30;
-        period2 = new Date();
-        period1 = new Date(Date.now() - days * 86400000);
+      } else {
+        chartParams = {
+          range:          params.range || '1mo',
+          interval:       params.interval || '1d',
+          includePrePost: false,
+        };
       }
 
-      const intervalMap = {
-        '1m':'1m','2m':'2m','5m':'5m','15m':'15m','30m':'30m',
-        '60m':'60m','1h':'60m','1d':'1d','1wk':'1wk','1mo':'1mo'
-      };
-
-      const result = await yahooFinance.chart(sym, {
-        period1,
-        period2,
-        interval: intervalMap[interval] || '1d',
-      }, { validateResult: false });
-
-      // Formatteer naar zelfde structuur als v8/finance/chart
-      data = {
-        chart: {
-          result: [{
-            timestamp: result.quotes.map(q => Math.floor(new Date(q.date).getTime() / 1000)),
-            indicators: {
-              quote: [{
-                close: result.quotes.map(q => q.close),
-                open:  result.quotes.map(q => q.open),
-                high:  result.quotes.map(q => q.high),
-                low:   result.quotes.map(q => q.low),
-              }]
-            }
-          }]
-        }
-      };
+      data = await chartFetch(sym, chartParams);
 
     } else if (endpoint === 'search') {
-      const results = await yahooFinance.search(params.q, { quotesCount: 6, newsCount: 0 }, { validateResult: false });
-      data = results;
+      // Yahoo Finance search — geen crumb nodig
+      const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(params.q)}&quotesCount=6&newsCount=0&enableFuzzyQuery=false&lang=en-US`;
+      const res2 = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(8000) });
+      if (!res2.ok) throw new Error(`Search ${res2.status}`);
+      data = await res2.json();
 
     } else {
       return res.status(400).json({ error: `Onbekend endpoint: ${endpoint}` });
@@ -93,7 +90,15 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (err) {
-    console.error('Market API error:', err.message);
+    console.error('[market]', err.message);
     return res.status(500).json({ error: err.message });
   }
+}
+
+// Bereken % change als Yahoo het niet meegeeft
+function percentChange(meta) {
+  const cur  = meta.regularMarketPrice;
+  const prev = meta.previousClose ?? meta.chartPreviousClose;
+  if (!cur || !prev) return null;
+  return ((cur - prev) / prev) * 100;
 }
