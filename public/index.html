@@ -1439,7 +1439,7 @@ async function hydrateAllRows(tickers) {
     }
   }
 
-  // quotes is een array of dict afhankelijk van het aantal
+  // quotes is altijd een array (onze proxy geeft altijd array terug)
   const quoteMap = {};
   (Array.isArray(quotes) ? quotes : [quotes]).forEach(q => { quoteMap[q.symbol] = q; });
 
@@ -1535,6 +1535,7 @@ async function loadChart(dateFrom, dateTo) {
 
     // Quote: prijs + 1D change
     const q = Array.isArray(quoteData) ? quoteData[0] : quoteData;
+    if (!q || q.error) throw new Error('Geen data beschikbaar voor dit instrument');
     if (q && q.regularMarketPrice != null) {
       document.getElementById('marktDetailPrice').textContent = fmtPrice(q.regularMarketPrice, mktCurrentTicker);
       const chEl = document.getElementById('marktDetailChange');
