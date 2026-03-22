@@ -1523,7 +1523,7 @@ function buildTVWidget(tvSymbol, period) {
     range:               cfg.range,
     timezone:            'Europe/Brussels',
     theme:               dark ? 'dark' : 'light',
-    style:               '3',
+    style:               '2',
     locale:              'nl_BE',
     hide_top_toolbar:    true,
     hide_legend:         true,
@@ -1538,18 +1538,39 @@ function buildTVWidget(tvSymbol, period) {
   wrap.appendChild(container);
 }
 
-async function loadQuote() {
+async function loadQuote(period) {
   if (!mktCurrentTicker) return;
+  const chEl = document.getElementById('marktDetailChange');
+  chEl.textContent = '…';
+  chEl.className   = 'markt-detail-change neu';
   try {
-    const q = await mktFetch('quote', { symbol: mktCurrentTicker.src });
-    document.getElementById('marktDetailPrice').textContent = fmtPrice(q.c, mktCurrentTicker);
-    const chEl = document.getElementById('marktDetailChange');
-    chEl.textContent = fmtPct(q.dp) + ' vandaag';
-    chEl.className   = `markt-detail-change ${pctClass(q.dp)}`;
+    const p = period || mktCurrentPeriod;
+    if (p === '1day') {
+      // Vandaag: gebruik quote dp (meest accurate voor intraday)
+      const q = await mktFetch('quote', { symbol: mktCurrentTicker.src });
+      document.getElementById('marktDetailPrice').textContent = fmtPrice(q.c, mktCurrentTicker);
+      chEl.textContent = fmtPct(q.dp) + ' vandaag';
+      chEl.className   = `markt-detail-change ${pctClass(q.dp)}`;
+    } else {
+      // Andere periodes: haal eerste + laatste koers op via pct endpoint
+      const [q, pctData] = await Promise.all([
+        mktFetch('quote', { symbol: mktCurrentTicker.src }),
+        mktFetch('pct',   { symbol: mktCurrentTicker.src, period: p }),
+      ]);
+      document.getElementById('marktDetailPrice').textContent = fmtPrice(q.c, mktCurrentTicker);
+      if (pctData?.dp != null) {
+        const labels = { '1month':'1M', '6month':'6M', '1year':'1J' };
+        chEl.textContent = fmtPct(pctData.dp) + ' ' + (labels[p] || p);
+        chEl.className   = `markt-detail-change ${pctClass(pctData.dp)}`;
+      } else {
+        chEl.textContent = fmtPct(q.dp) + ' vandaag';
+        chEl.className   = `markt-detail-change ${pctClass(q.dp)}`;
+      }
+    }
   } catch (e) {
-    document.getElementById('marktDetailPrice').textContent  = 'Fout';
-    document.getElementById('marktDetailChange').textContent = e.message;
-    document.getElementById('marktDetailChange').className   = 'markt-detail-change neg';
+    document.getElementById('marktDetailPrice').textContent = 'Fout';
+    chEl.textContent = e.message;
+    chEl.className   = 'markt-detail-change neg';
   }
 }
 
@@ -1603,7 +1624,10 @@ document.getElementById('marktPeriodRow').addEventListener('click', e => {
   }
   document.getElementById('marktCustomDates').style.display = 'none';
   mktCurrentPeriod = period;
-  if (mktCurrentTicker) buildTVWidget(mktCurrentTicker.tv, mktCurrentPeriod);
+  if (mktCurrentTicker) {
+    buildTVWidget(mktCurrentTicker.tv, mktCurrentPeriod);
+    loadQuote(mktCurrentPeriod);
+  }
 });
 document.getElementById('marktDateApply').addEventListener('click', () => {
   if (mktCurrentTicker) buildTVWidget(mktCurrentTicker.tv, '1year');
