@@ -261,6 +261,10 @@
     .article-card-placeholder { background: linear-gradient(135deg,#2A2720 0%,#1E1C18 100%); }
     .source-chip.active { background: var(--ink); color: var(--bg); }
     .tab-bar { background: rgba(32,30,24,.92); }
+    .label-politiek  { background: #1E1030; color: #C4A0F5; }
+    .label-economie  { background: #231500; color: #F0A040; }
+    .label-binnenland{ background: var(--be-bg);    color: #6ADA8A; }
+    .label-buitenland{ background: var(--world-bg); color: #D4945A; }
   }
 
   /* ── ARTICLE POPUP ── */
@@ -1256,10 +1260,8 @@ document.addEventListener('touchend', () => {
 init();
 
 // ── POPUP ─────────────────────────────────────────────────────────────────────
-let popupArticle = null;
 
 function openPopup(art) {
-  popupArticle = art;
   const desc = art.desc || '';
   const clean = desc.replace(/<[^>]*>/g, '').trim();
   document.getElementById('popupTitle').textContent = art.title;
@@ -1274,7 +1276,6 @@ function closePopup() {
   document.getElementById('popupOverlay').classList.remove('open');
   document.getElementById('popupSheet').classList.remove('open');
   document.body.style.overflow = '';
-  popupArticle = null;
 }
 
 document.getElementById('popupOverlay').addEventListener('click', closePopup);
@@ -1317,6 +1318,7 @@ const TV_RANGE = {
   '1month': { interval: 'D',  range: '1M'  },
   '6month': { interval: 'W',  range: '6M'  },
   '1year':  { interval: 'W',  range: '12M' },
+  'custom': { interval: 'D',  range: null  },
 };
 
 let mktWatchlist     = [];
@@ -1334,22 +1336,29 @@ function wlAdd(t)      { if (!wlHas(t.symbol)) { mktWatchlist.push(t); wlSave();
 function wlRemove(sym) { mktWatchlist = mktWatchlist.filter(t => t.symbol !== sym); wlSave(); }
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
+let _mktCache = null;
+
+function mktCacheLoad() {
+  if (_mktCache) return _mktCache;
+  try { _mktCache = JSON.parse(localStorage.getItem(MKT_CACHE_KEY) || '{}'); }
+  catch { _mktCache = {}; }
+  return _mktCache;
+}
+function mktCacheFlush() {
+  try { localStorage.setItem(MKT_CACHE_KEY, JSON.stringify(_mktCache)); } catch {}
+}
 function mktCacheGet(key) {
-  try {
-    const s = JSON.parse(localStorage.getItem(MKT_CACHE_KEY) || '{}');
-    const e = s[key];
-    if (!e || Date.now() - e.ts > MKT_CACHE_TTL) return null;
-    return e.data;
-  } catch { return null; }
+  const s = mktCacheLoad();
+  const e = s[key];
+  if (!e || Date.now() - e.ts > MKT_CACHE_TTL) return null;
+  return e.data;
 }
 function mktCacheSet(key, data) {
-  try {
-    const s = JSON.parse(localStorage.getItem(MKT_CACHE_KEY) || '{}');
-    const now = Date.now();
-    for (const k of Object.keys(s)) if (now - s[k].ts > MKT_CACHE_TTL * 8) delete s[k];
-    s[key] = { data, ts: now };
-    localStorage.setItem(MKT_CACHE_KEY, JSON.stringify(s));
-  } catch {}
+  const s   = mktCacheLoad();
+  const now = Date.now();
+  for (const k of Object.keys(s)) if (now - s[k].ts > MKT_CACHE_TTL * 8) delete s[k];
+  s[key] = { data, ts: now };
+  mktCacheFlush();
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -1549,7 +1558,10 @@ async function mktDoSearch() {
     const local = all.find(t =>
       t.symbol.toUpperCase() === upper || t.src?.toUpperCase() === upper
     );
-    if (local) { openDetail(local); return; }
+    if (local) {
+      openDetail(local);
+      return;
+    }
 
     // Via Vercel proxy → TradingView symbol search
     const qs  = new URLSearchParams({ endpoint: 'search', q: raw }).toString();
@@ -1653,12 +1665,7 @@ async function openDetail(ticker) {
     b.classList.toggle('active', b.dataset.period === '1day'));
   document.getElementById('marktCustomDates').style.display = 'none';
   updateWatchlistBtn();
-  // Sla de ticker op zodat async callbacks nog steeds de juiste ticker targeten
-  const activeTicker = ticker;
-  loadQuote().then(() => {
-    // Negeer resultaat als gebruiker ondertussen naar een andere ticker navigeerde
-    if (mktCurrentTicker !== activeTicker) return;
-  });
+  loadQuote();
   buildTVWidget(ticker.tv, mktCurrentPeriod);
 }
 
@@ -1730,8 +1737,8 @@ async function loadQuote(period) {
   chEl.className   = 'markt-detail-change neu';
   try {
     const p = period || mktCurrentPeriod;
-    if (p === '1day') {
-      // Vandaag: gebruik quote dp (meest accurate voor intraday)
+    if (p === '1day' || p === 'custom') {
+      // Vandaag (of eigen periode): toon huidige prijs + dagwijziging
       const q = await mktFetch('quote', { symbol: mktCurrentTicker.src });
       document.getElementById('marktDetailPrice').textContent = fmtPrice(q.c, mktCurrentTicker);
       chEl.textContent = fmtPct(q.dp) + ' vandaag';
@@ -1759,7 +1766,6 @@ async function loadQuote(period) {
   }
 }
 
-// ── Zoeken ────────────────────────────────────────────────────────────────────
 // ── Events ────────────────────────────────────────────────────────────────────
 document.getElementById('marktBackBtn').addEventListener('click', () => { showListPanel(); renderTickerList(); });
 document.getElementById('marktWatchlistBtn').addEventListener('click', () => {
@@ -1770,6 +1776,8 @@ document.getElementById('marktWatchlistBtn').addEventListener('click', () => {
 document.getElementById('marktSearchBtn').addEventListener('click', mktDoSearch);
 document.getElementById('marktSearchInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') mktDoSearch();
+});
+document.getElementById('marktSearchInput').addEventListener('input', () => {
   document.getElementById('marktSearchError').style.display = 'none';
 });
 document.getElementById('marktTickerList').addEventListener('click', e => {
