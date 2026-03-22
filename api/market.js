@@ -215,20 +215,16 @@ export default async function handler(req, res) {
         case 'XAUUSD': data = await quoteXAUUSD();   break;
         case 'WTI':    data = await quoteWTI();       break;
         case 'US10Y':  data = await quoteUS10Y();     break;
-        case 'JPM':    data = await quoteAV('JPM');   break;
-        case 'URTH':   data = await quoteAV('URTH');  break;
-        default: throw new Error(`Onbekend symbool: ${symbol}`);
+        default:       data = await quoteAV(symbol);  break; // AAPL, MSFT, etc.
       }
     } else if (endpoint === 'pct') {
       const p = period || '1month';
       switch (symbol) {
-        case 'EURUSD': data = await pctEURUSD(p);        break;
-        case 'XAUUSD': data = await pctXAUUSD(p);        break;
-        case 'WTI':    data = await pctWTI(p);            break;
-        case 'US10Y':  data = await pctUS10Y(p);          break;
-        case 'JPM':    data = await pctAV('JPM', p);      break;
-        case 'URTH':   data = await pctAV('URTH', p);     break;
-        default: throw new Error(`Onbekend symbool: ${symbol}`);
+        case 'EURUSD': data = await pctEURUSD(p);       break;
+        case 'XAUUSD': data = await pctXAUUSD(p);       break;
+        case 'WTI':    data = await pctWTI(p);           break;
+        case 'US10Y':  data = await pctUS10Y(p);         break;
+        default:       data = await pctAV(symbol, p);   break; // elk aandeel
       }
     } else if (endpoint === 'search') {
       if (!AV_KEY) throw new Error('ALPHAVANTAGE_API_KEY niet ingesteld');
