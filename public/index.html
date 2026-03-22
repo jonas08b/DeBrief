@@ -1560,7 +1560,7 @@ function initSwipe() {
   });
 }
 
-// ── Zoeken — rechtstreeks via TradingView symbol search ───────────────────────
+// ── Zoeken — via Vercel proxy → TradingView symbol search ────────────────────
 async function mktDoSearch() {
   const raw   = document.getElementById('marktSearchInput').value.trim();
   if (!raw) return;
@@ -1579,14 +1579,13 @@ async function mktDoSearch() {
     );
     if (local) { openDetail(local); return; }
 
-    // Rechtstreeks naar TradingView symbol search (geen key, geen rate limit)
-    const res  = await fetch(
-      `https://symbol-search.tradingview.com/symbol_search/v3/?text=${encodeURIComponent(raw)}&type=&exchange=&lang=nl_BE`,
-      { signal: timeoutSignal(8000) }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    const hits = (json.symbols || []).slice(0, 8);
+    // Via Vercel proxy → TradingView symbol search
+    const qs  = new URLSearchParams({ endpoint: 'search', q: raw }).toString();
+    const res = await fetch(`${MARKET_API}?${qs}`, { signal: timeoutSignal(12000) });
+    if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const hits = data?.hits || [];
 
     if (!hits.length) {
       errEl.textContent   = `"${raw}" niet gevonden.`;
@@ -1596,7 +1595,7 @@ async function mktDoSearch() {
 
     showSearchResults(hits);
   } catch (e) {
-    errEl.textContent   = 'Zoeken mislukt: ' + e.message;
+    errEl.textContent   = 'Fout: ' + e.message;
     errEl.style.display = 'block';
   } finally {
     btn.textContent = 'Zoek';
