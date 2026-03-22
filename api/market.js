@@ -230,6 +230,19 @@ export default async function handler(req, res) {
         case 'URTH':   data = await pctAV('URTH', p);     break;
         default: throw new Error(`Onbekend symbool: ${symbol}`);
       }
+    } else if (endpoint === 'search') {
+      if (!AV_KEY) throw new Error('ALPHAVANTAGE_API_KEY niet ingesteld');
+      const q      = req.query.q || '';
+      const result = await fetchJSON(
+        `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(q)}&apikey=${AV_KEY}`
+      );
+      const hits = (result.bestMatches || []).map(m => ({
+        symbol:   m['1. symbol'],
+        name:     m['2. name'],
+        type:     m['3. type'],
+        exchange: m['4. region'],
+      }));
+      data = { hits };
     } else {
       throw new Error(`Onbekend endpoint: ${endpoint}`);
     }
