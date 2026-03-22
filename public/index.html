@@ -1600,6 +1600,25 @@ async function mktDoSearch() {
   }
 }
 
+function avExchangeToTV(region, symbol) {
+  // Alpha Vantage region → TradingView exchange prefix
+  const map = {
+    'United States': '',        // TV zoekt zelf op NYSE/NASDAQ
+    'United Kingdom': 'LSE',
+    'Germany': 'XETR',
+    'France': 'EURONEXT',
+    'Netherlands': 'EURONEXT',
+    'Belgium': 'EURONEXT',
+    'Japan': 'TSE',
+    'China': 'SSE',
+    'Hong Kong': 'HKEX',
+  };
+  const prefix = map[region];
+  if (prefix === '') return symbol;           // US: geen prefix nodig, TV raadt zelf
+  if (prefix)        return `${prefix}:${symbol}`;
+  return symbol;                              // onbekend: gewoon symbool
+}
+
 function showSearchResults(hits) {
   const container = document.getElementById('marktTickerList');
   let html = '<div class="markt-section-label">Zoekresultaten</div>';
@@ -1631,7 +1650,7 @@ function showSearchResults(hits) {
       const ticker = {
         symbol:   h.symbol,
         src:      h.symbol,
-        tv:       `${h.exchange}:${h.symbol}`,
+        tv:       avExchangeToTV(h.exchange, h.symbol),
         name:     h.name,
         type:     h.type,
         decimals: 2, prefix: '', suffix: '',
@@ -1710,7 +1729,7 @@ function buildTVWidget(tvSymbol, period) {
     range:               cfg.range,
     timezone:            'Europe/Brussels',
     theme:               dark ? 'dark' : 'light',
-    style:               '3',
+    style:               '2',
     locale:              'nl_BE',
     hide_top_toolbar:    true,
     hide_legend:         true,
