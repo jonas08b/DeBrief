@@ -982,26 +982,11 @@ function geminiCacheSet(entries) {
   } catch {}
 }
 
-async function groqProcess(articles) {
-  // articles = [{ index, title, translate }]
-  // Geeft { catMap: {index: cat}, titleMap: {index: nlTitle} }
-  if (!articles.length) return { catMap: {}, titleMap: {} };
+const GROQ_BATCH_SIZE = 20; // Groq free tier: max tokens per request
 
-  const catMap = {}, titleMap = {};
-  const uncached = [];
-  for (const a of articles) {
-    const cached = geminiCacheGet(a.title);
-    if (cached !== null) {
-      catMap[String(a.index)] = cached.cat;
-      if (cached.nl) titleMap[String(a.index)] = cached.nl;
-    } else {
-      uncached.push(a);
-    }
-  }
-
-  if (!uncached.length) return { catMap, titleMap };
-
-  const inputJson = JSON.stringify(uncached.map(a => ({ i: a.index, t: a.title, tr: a.translate })));
+async function groqBatch(batch) {
+  // Stuurt één batch naar Groq en geeft { catMap, titleMap } terug voor die batch
+  const inputJson = JSON.stringify(batch.map(a => ({ i: a.index, t: a.title, tr: a.translate })));
   const prompt = `Je krijgt een lijst nieuwsartikels. Voor elk artikel:
 1. Kies een categorie uit: binnenland, buitenland, politiek, economie, overig
    - binnenland: nieuws over België intern
@@ -1025,25 +1010,53 @@ Artikels: ${inputJson}`;
       temperature: 0,
       messages: [{ role: 'user', content: prompt }]
     }),
-    signal: AbortSignal.timeout(20000)
+    signal: AbortSignal.timeout(30000)
   });
   if (!res.ok) throw new Error(`Groq HTTP ${res.status}`);
   const data = await res.json();
-  const text = data.choices?.[0]?.message?.content || '{}';
+  const text  = data.choices?.[0]?.message?.content || '{}';
   const clean = text.replace(/```json|```/g, '').trim();
-  try {
-    const parsed = JSON.parse(clean);
-    const toCache = [];
-    for (const a of uncached) {
-      const entry = parsed[String(a.index)] || {};
-      const cat = GEMINI_CATS.includes((entry.cat||'').toLowerCase())
-        ? entry.cat.toLowerCase() : 'overig';
-      catMap[String(a.index)] = cat;
-      if (a.translate && entry.nl) titleMap[String(a.index)] = entry.nl;
-      toCache.push({ title: a.title, data: { cat, nl: entry.nl || null } });
+  return JSON.parse(clean);
+}
+
+async function groqProcess(articles) {
+  if (!articles.length) return { catMap: {}, titleMap: {} };
+
+  const catMap = {}, titleMap = {};
+  const uncached = [];
+  for (const a of articles) {
+    const hit = geminiCacheGet(a.title);
+    if (hit !== null) {
+      catMap[String(a.index)] = hit.cat;
+      if (hit.nl) titleMap[String(a.index)] = hit.nl;
+    } else {
+      uncached.push(a);
     }
-    geminiCacheSet(toCache);
-  } catch {}
+  }
+
+  if (!uncached.length) return { catMap, titleMap };
+
+  // Splits in batches van GROQ_BATCH_SIZE om 429s te vermijden
+  for (let i = 0; i < uncached.length; i += GROQ_BATCH_SIZE) {
+    const batch = uncached.slice(i, i + GROQ_BATCH_SIZE);
+    try {
+      const parsed  = await groqBatch(batch);
+      const toCache = [];
+      for (const a of batch) {
+        const entry = parsed[String(a.index)] || {};
+        const cat   = GEMINI_CATS.includes((entry.cat || '').toLowerCase())
+          ? entry.cat.toLowerCase() : 'overig';
+        catMap[String(a.index)] = cat;
+        if (a.translate && entry.nl) titleMap[String(a.index)] = entry.nl;
+        toCache.push({ title: a.title, data: { cat, nl: entry.nl || null } });
+      }
+      geminiCacheSet(toCache);
+    } catch (e) {
+      // Bij fout in een batch: categoriseer de batch als 'overig' en ga verder
+      console.warn(`Groq batch ${i}–${i + batch.length} mislukt:`, e.message);
+      for (const a of batch) catMap[String(a.index)] = 'overig';
+    }
+  }
 
   return { catMap, titleMap };
 }
