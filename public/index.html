@@ -1309,27 +1309,24 @@ sheet.addEventListener('touchend', e => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const MARKET_API    = '/api/market';
-const MKT_CACHE_KEY = 'debrief_mkt_fh_v1';
+const MKT_CACHE_KEY = 'debrief_mkt_v2';
 const MKT_CACHE_TTL = 15 * 60 * 1000;
 const WL_KEY        = 'debrief_watchlist_v2';
 
-// Finnhub symbolen
-// type: 'stock' → /stock/candle, 'forex' → /forex/candle, 'crypto' → /crypto/candle
 const PRESET_TICKERS = [
-  { symbol:'EUR/USD', fh:'OANDA:EUR_USD',  name:'Euro / US Dollar',      type:'forex',  decimals:4, prefix:'',  suffix:''  },
-  { symbol:'XAU/USD', fh:'OANDA:XAU_USD',  name:'Goud (troy ounce)',      type:'forex',  decimals:2, prefix:'$', suffix:''  },
-  { symbol:'S&P 500', fh:'^GSPC',          name:'S&P 500 Index',          type:'stock',  decimals:2, prefix:'',  suffix:''  },
-  { symbol:'BEL20',   fh:'^BFX',           name:'BEL 20 Index',           type:'stock',  decimals:2, prefix:'',  suffix:''  },
-  { symbol:'US10Y',   fh:'^TNX',           name:'US 10-jaar rente',       type:'stock',  decimals:3, prefix:'',  suffix:'%' },
-  { symbol:'WTI',     fh:'OANDA:BCO_USD',  name:'Ruwe olie Brent ($/vat)',type:'forex',  decimals:2, prefix:'$', suffix:''  },
+  { symbol:'EUR/USD',    src:'EURUSD', name:'Euro / US Dollar',       type:'forex', decimals:4, prefix:'',  suffix:''  },
+  { symbol:'XAU/USD',    src:'XAUUSD', name:'Goud (troy ounce)',       type:'forex', decimals:2, prefix:'$', suffix:''  },
+  { symbol:'WTI',        src:'WTI',    name:'Ruwe olie Brent ($/vat)', type:'forex', decimals:2, prefix:'$', suffix:''  },
+  { symbol:'US10Y',      src:'US10Y',  name:'US 10-jaar rente',        type:'stock', decimals:3, prefix:'',  suffix:'%' },
+  { symbol:'JPMorgan',   src:'JPM',    name:'JPMorgan Chase & Co.',    type:'stock', decimals:2, prefix:'$', suffix:''  },
+  { symbol:'MSCI World', src:'URTH',   name:'MSCI World ETF (URTH)',   type:'stock', decimals:2, prefix:'$', suffix:''  },
 ];
 
-// Periode → Finnhub resolution + seconden terug
 const PERIOD_CFG = {
-  '1D': { resolution:'5',  seconds: 1 * 24 * 3600 },
-  '1M': { resolution:'D',  seconds: 30 * 24 * 3600 },
-  '6M': { resolution:'W',  seconds: 180 * 24 * 3600 },
-  '1J': { resolution:'M',  seconds: 365 * 24 * 3600 },
+  '1D': { days: 2   },
+  '1M': { days: 31  },
+  '6M': { days: 183 },
+  '1J': { days: 366 },
 };
 
 let mktWatchlist     = [];
@@ -1427,7 +1424,7 @@ async function hydrateAllRows(tickers) {
     const changeEl = document.getElementById(`mchange-${id}`);
     if (!priceEl) return;
     try {
-      const q = await mktFetch('quote', { symbol: ticker.fh });
+    const q = await mktFetch('quote', { symbol: ticker.src });
       // Finnhub quote: c=current, pc=prev close, dp=% change
       if (!q.c || q.c === 0) { priceEl.textContent = 'N/B'; return; }
       priceEl.textContent  = fmtPrice(q.c, ticker);
@@ -1511,18 +1508,9 @@ async function loadChart(dateFrom, dateTo) {
       ? Math.floor(new Date(dateTo).getTime() / 1000)
       : now;
 
-    // Kies het juiste candle endpoint op basis van type
-    const candleEndpoint = mktCurrentTicker.type === 'forex' ? 'forex_candle'
-      : mktCurrentTicker.type === 'crypto' ? 'crypto_candle'
-      : 'stock_candle';
-
-    const [quoteData, candleData] = await Promise.all([
-      mktFetch('quote', { symbol: mktCurrentTicker.fh }),
-      mktFetch(candleEndpoint, {
-        symbol:     mktCurrentTicker.fh,
-        resolution: cfg.resolution,
-        from, to,
-      }),
+const [quoteData, candleData] = await Promise.all([
+      mktFetch('quote',  { symbol: mktCurrentTicker.src }),
+      mktFetch('candle', { symbol: mktCurrentTicker.src, period: mktCurrentPeriod === 'custom' ? '1J' : mktCurrentPeriod }),
     ]);
 
     // Quote
