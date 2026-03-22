@@ -1560,12 +1560,12 @@ function initSwipe() {
   });
 }
 
-// ── Zoeken ────────────────────────────────────────────────────────────────────
+// ── Zoeken — rechtstreeks via TradingView symbol search ───────────────────────
 async function mktDoSearch() {
-  const raw    = document.getElementById('marktSearchInput').value.trim();
+  const raw   = document.getElementById('marktSearchInput').value.trim();
   if (!raw) return;
-  const errEl  = document.getElementById('marktSearchError');
-  const btn    = document.getElementById('marktSearchBtn');
+  const errEl = document.getElementById('marktSearchError');
+  const btn   = document.getElementById('marktSearchBtn');
   errEl.style.display = 'none';
   btn.textContent     = '…';
   btn.disabled        = true;
@@ -1579,9 +1579,14 @@ async function mktDoSearch() {
     );
     if (local) { openDetail(local); return; }
 
-    // Anders: zoek via Alpha Vantage SYMBOL_SEARCH
-    const data = await mktFetch('search', { q: raw });
-    const hits  = data?.hits || [];
+    // Rechtstreeks naar TradingView symbol search (geen key, geen rate limit)
+    const res  = await fetch(
+      `https://symbol-search.tradingview.com/symbol_search/v3/?text=${encodeURIComponent(raw)}&type=&exchange=&lang=nl_BE`,
+      { signal: timeoutSignal(8000) }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const hits = (json.symbols || []).slice(0, 8);
 
     if (!hits.length) {
       errEl.textContent   = `"${raw}" niet gevonden.`;
@@ -1589,7 +1594,6 @@ async function mktDoSearch() {
       return;
     }
 
-    // Toon resultaten als keuzelijst
     showSearchResults(hits);
   } catch (e) {
     errEl.textContent   = 'Zoeken mislukt: ' + e.message;
@@ -1600,40 +1604,27 @@ async function mktDoSearch() {
   }
 }
 
-function avExchangeToTV(region, symbol) {
-  // Alpha Vantage region → TradingView exchange prefix
-  const map = {
-    'United States': '',        // TV zoekt zelf op NYSE/NASDAQ
-    'United Kingdom': 'LSE',
-    'Germany': 'XETR',
-    'France': 'EURONEXT',
-    'Netherlands': 'EURONEXT',
-    'Belgium': 'EURONEXT',
-    'Japan': 'TSE',
-    'China': 'SSE',
-    'Hong Kong': 'HKEX',
-  };
-  const prefix = map[region];
-  if (prefix === '') return symbol;           // US: geen prefix nodig, TV raadt zelf
-  if (prefix)        return `${prefix}:${symbol}`;
-  return symbol;                              // onbekend: gewoon symbool
-}
-
 function showSearchResults(hits) {
   const container = document.getElementById('marktTickerList');
   let html = '<div class="markt-section-label">Zoekresultaten</div>';
-  hits.slice(0, 8).forEach(h => {
+
+  hits.forEach(h => {
+    // TradingView geeft { symbol, full_name, description, exchange, type }
+    const display = h.description || h.symbol;
+    const exch    = h.exchange || '';
+    const safe    = JSON.stringify(h).replace(/'/g, '&#39;');
     html += `
-      <div class="markt-ticker-row markt-search-result" data-hit='${JSON.stringify(h)}'>
+      <div class="markt-ticker-row markt-search-result" data-hit='${safe}'>
         <div class="markt-ticker-info">
           <div class="markt-ticker-symbol">${h.symbol}</div>
-          <div class="markt-ticker-name">${h.name}</div>
+          <div class="markt-ticker-name">${display}</div>
         </div>
         <div class="markt-ticker-right">
-          <div class="markt-ticker-change neu" style="font-size:10px">${h.exchange || ''}</div>
+          <div class="markt-ticker-change neu" style="font-size:10px;padding:2px 6px">${exch}</div>
         </div>
       </div>`;
   });
+
   html += `<div style="padding:12px 4px">
     <button id="marktSearchBack" style="background:none;border:none;color:var(--accent);font-family:var(--font-sans);font-size:13px;font-weight:600;cursor:pointer;padding:0">← Terug</button>
   </div>`;
@@ -1646,13 +1637,15 @@ function showSearchResults(hits) {
 
   container.querySelectorAll('.markt-search-result').forEach(row => {
     row.addEventListener('click', () => {
-      const h = JSON.parse(row.dataset.hit);
+      const h      = JSON.parse(row.dataset.hit);
+      // full_name is "EXCHANGE:SYMBOL" — exact wat TradingView widget verwacht
+      const tvSym  = h.full_name || `${h.exchange}:${h.symbol}`;
       const ticker = {
         symbol:   h.symbol,
-        src:      h.symbol,
-        tv:       avExchangeToTV(h.exchange, h.symbol),
-        name:     h.name,
-        type:     h.type,
+        src:      h.symbol,   // voor Alpha Vantage quote
+        tv:       tvSym,      // voor TradingView widget
+        name:     h.description || h.symbol,
+        type:     h.type || 'stock',
         decimals: 2, prefix: '', suffix: '',
       };
       customAdd(ticker);
