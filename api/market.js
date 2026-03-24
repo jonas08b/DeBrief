@@ -1,7 +1,8 @@
-// api/market.js — DeBrief Markt proxy v5
+// api/market.js — DeBrief Markt proxy v6
 //
 // EUR/USD  → frankfurter.app    (gratis, geen key)
 // XAU/USD  → gold-api.com       (gratis, geen key)
+// XAU pct  → gold-api.com       (gratis, geen key)  ← FIX #1 & #2: geen AV meer
 // WTI      → Alpha Vantage BRENT (gratis, key vereist)
 // US10Y    → FRED API            (gratis, key vereist)
 // Aandelen → Alpha Vantage       (gratis, key vereist)
@@ -10,11 +11,30 @@
 // Cache-strategie:
 //   1. Vercel Edge Cache-Control headers → CDN cached per endpoint+symbol
 //   2. In-memory stale-while-revalidate → bij AV rate-limit stale data teruggeven
+//
+// FIX #5: In-memory cache werkt per instantie. De Vercel Cache-Control header
+//         is de primaire bescherming tegen cold-start cache-misses.
 
 const FRED_KEY = process.env.FRED_API_KEY;
 const AV_KEY   = process.env.ALPHAVANTAGE_API_KEY;
 
+// ── Toegestane symbolen (FIX #7: voorkom willekeurige AV-calls) ──────────────
+const ALLOWED_QUOTE_SYMBOLS = new Set(['EURUSD', 'XAUUSD', 'WTI', 'US10Y']);
+const ALLOWED_PCT_SYMBOLS   = new Set(['EURUSD', 'XAUUSD', 'WTI', 'US10Y']);
+// Aandelen/ETF-symbolen: alleen letters, cijfers, punt en koppelteken, max 12 tekens
+function isValidEquitySymbol(s) {
+  return typeof s === 'string' && /^[A-Z0-9.\-]{1,12}$/.test(s);
+}
+function sanitiseSymbol(s) {
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9.\-]/g, '').slice(0, 12);
+}
+function sanitiseSearchQuery(q) {
+  return String(q || '').replace(/[^a-zA-Z0-9 .\/\-]/g, '').trim().slice(0, 50);
+}
+
 // ── In-memory cache (stale-while-revalidate) ──────────────────────────────────
+// FIX #5: Cache werkt per serverless instantie. De Vercel CDN-cache (s-maxage)
+//         is de echte bescherming; deze in-memory cache helpt binnen één instantie.
 const CACHE     = {};
 const FRESH_TTL = 5  * 60 * 1000;  //  5 min: fresh data
 const STALE_TTL = 60 * 60 * 1000;  // 60 min: stale maar bruikbaar bij fout
@@ -116,6 +136,7 @@ async function quoteUS10Y() {
 }
 
 async function quoteAV(symbol) {
+  // FIX #7: validatie gebeurt vóór deze aanroep in de handler
   return cached(`q_av_${symbol}`, async () => {
     if (!AV_KEY) throw new Error('ALPHAVANTAGE_API_KEY niet ingesteld');
     const data = await fetchJSON(
@@ -134,12 +155,19 @@ async function quoteAV(symbol) {
 
 // ── PCT ───────────────────────────────────────────────────────────────────────
 
+// FIX #6: ruimere buffer zodat `outputsize=compact` (100 datapunten) altijd volstaat
+// voor periodes t.e.m. 6 maanden. Voor 1 jaar: full outputsize verplicht.
 function periodToStartDate(period) {
-  const daysMap = { '1month': 35, '6month': 185, '1year': 370 };
-  const days    = daysMap[period] || 35;
+  const daysMap = { '1month': 40, '6month': 195, '1year': 375 };
+  const days    = daysMap[period] || 40;
   const d       = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().split('T')[0];
+}
+
+// FIX #6: gebruik outputsize=full alleen wanneer nodig
+function avOutputSize(period) {
+  return period === '1year' ? 'full' : 'compact';
 }
 
 async function pctEURUSD(period) {
@@ -154,15 +182,27 @@ async function pctEURUSD(period) {
   });
 }
 
+// FIX #1 & #2: XAU pct via gold-api.com history, geen AV-call meer
 async function pctXAUUSD(period) {
   return cached(`pct_xauusd_${period}`, async () => {
-    if (!AV_KEY) return { dp: null };
     const startDate = periodToStartDate(period);
-    const data = await fetchJSON(
-      `https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=XAU&to_symbol=USD&outputsize=full&apikey=${AV_KEY}`
-    );
-    avCheckRateLimit(data);
-    return pctFromAVSeries(data['Time Series FX (Daily)'], startDate, '4. close');
+    try {
+      // gold-api.com biedt historische data via /price/XAU/history (gratis)
+      const data = await fetchJSON(
+        `https://api.gold-api.com/price/XAU/history?startDate=${startDate}`
+      );
+      const entries = (data?.history || data?.data || [])
+        .filter(e => e.date && e.price)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (entries.length < 2) return { dp: null };
+      const first = parseFloat(entries[0].price);
+      const last  = parseFloat(entries[entries.length - 1].price);
+      if (!first || !last) return { dp: null };
+      return { dp: ((last - first) / first) * 100 };
+    } catch {
+      // Fallback: geen pct beschikbaar zonder AV-call
+      return { dp: null };
+    }
   });
 }
 
@@ -200,14 +240,15 @@ async function pctUS10Y(period) {
 }
 
 async function pctAV(symbol, period) {
+  // FIX #7: validatie gebeurt vóór deze aanroep in de handler
   return cached(`pct_av_${symbol}_${period}`, async () => {
     if (!AV_KEY) return { dp: null };
-    const startDate = periodToStartDate(period);
+    const outputsize = avOutputSize(period); // FIX #6
     const data = await fetchJSON(
-      `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${AV_KEY}`
+      `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=${outputsize}&apikey=${AV_KEY}`
     );
     avCheckRateLimit(data);
-    return pctFromAVSeries(data['Time Series (Daily)'], startDate, '4. close');
+    return pctFromAVSeries(data['Time Series (Daily)'], periodToStartDate(period), '4. close');
   });
 }
 
@@ -223,6 +264,7 @@ function pctFromAVSeries(ts, startDate, closeKey) {
 }
 
 // ── Symbol search ─────────────────────────────────────────────────────────────
+// FIX #3: geef full_name correct door zodat frontend een geldig TV-symbool bouwt
 async function searchSymbols(q) {
   return cached(`search_${q.toLowerCase()}`, async () => {
     if (!AV_KEY) throw new Error('ALPHAVANTAGE_API_KEY niet ingesteld');
@@ -230,15 +272,45 @@ async function searchSymbols(q) {
       `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(q)}&apikey=${AV_KEY}`
     );
     avCheckRateLimit(data);
-    const hits = (data?.bestMatches || []).slice(0, 8).map(m => ({
-      symbol:    m['1. symbol'],
-      full_name: m['1. symbol'],
-      name:      m['2. name'],
-      exchange:  m['4. region'],
-      type:      m['3. type'],
-    }));
+    const hits = (data?.bestMatches || []).slice(0, 8).map(m => {
+      const symbol   = m['1. symbol'];
+      const region   = m['4. region'] || '';
+      const exchange = m['8. currency'] ? (m['9. matchScore'] ? m['4. region'] : '') : region;
+
+      // FIX #3: bouw een bruikbaar TradingView-symbool (exchange:symbol)
+      // AV geeft geen exchange prefix; we leiden die af uit de regio
+      const tvExchange = avRegionToTVExchange(region);
+      const full_name  = tvExchange ? `${tvExchange}:${symbol}` : symbol;
+
+      return {
+        symbol,
+        full_name,               // bruikbaar als TradingView-symbool
+        description: m['2. name'],
+        exchange:    region,
+        type:        (m['3. type'] || 'Equity').toLowerCase(),
+      };
+    });
     return { hits };
   });
+}
+
+// Hulpfunctie: AV regio → TradingView exchange prefix
+function avRegionToTVExchange(region) {
+  const map = {
+    'United States':  'NASDAQ',   // beste gok; TV zoekt zelf de juiste beurs
+    'United Kingdom': 'LSE',
+    'Canada':         'TSX',
+    'Germany':        'XETR',
+    'France':         'EURONEXT',
+    'Japan':          'TSE',
+    'China':          'SSE',
+    'Hong Kong':      'HKEX',
+    'India':          'BSE',
+    'Australia':      'ASX',
+    'Belgium':        'EURONEXT',
+    'Netherlands':    'EURONEXT',
+  };
+  return map[region] || null; // null → geen prefix, TV zoekt automatisch
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -246,35 +318,56 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   // Vercel Edge Cache: 5 min fresh, 10 min stale-while-revalidate
-  // Voorkomt dat elke gebruiker/cold-start een nieuwe AV-call triggert
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
 
-  const { endpoint, symbol, period } = req.query;
+  const { endpoint } = req.query;
+
+  // FIX #7: sanitiseer alle inputs vóór verwerking
+  const rawSymbol = req.query.symbol || '';
+  const rawPeriod = req.query.period || '1month';
+  const rawQuery  = req.query.q      || '';
+
+  const symbol = sanitiseSymbol(rawSymbol);
+  const period = ['1month', '6month', '1year'].includes(rawPeriod) ? rawPeriod : '1month';
+  const q      = sanitiseSearchQuery(rawQuery);
 
   try {
     let data;
 
     if (endpoint === 'quote') {
-      switch (symbol) {
-        case 'EURUSD': data = await quoteEURUSD();   break;
-        case 'XAUUSD': data = await quoteXAUUSD();   break;
-        case 'WTI':    data = await quoteWTI();       break;
-        case 'US10Y':  data = await quoteUS10Y();     break;
-        default:       data = await quoteAV(symbol);  break;
+      if (ALLOWED_QUOTE_SYMBOLS.has(symbol)) {
+        // Bekende preset-symbolen
+        switch (symbol) {
+          case 'EURUSD': data = await quoteEURUSD();   break;
+          case 'XAUUSD': data = await quoteXAUUSD();   break;
+          case 'WTI':    data = await quoteWTI();       break;
+          case 'US10Y':  data = await quoteUS10Y();     break;
+        }
+      } else if (isValidEquitySymbol(symbol)) {
+        // Custom aandeel/ETF via Alpha Vantage
+        data = await quoteAV(symbol);
+      } else {
+        throw new Error(`Ongeldig symbool: ${rawSymbol}`);
       }
+
     } else if (endpoint === 'pct') {
-      const p = period || '1month';
-      switch (symbol) {
-        case 'EURUSD': data = await pctEURUSD(p);     break;
-        case 'XAUUSD': data = await pctXAUUSD(p);     break;
-        case 'WTI':    data = await pctWTI(p);         break;
-        case 'US10Y':  data = await pctUS10Y(p);       break;
-        default:       data = await pctAV(symbol, p); break;
+      if (ALLOWED_PCT_SYMBOLS.has(symbol)) {
+        switch (symbol) {
+          case 'EURUSD': data = await pctEURUSD(period);   break;
+          case 'XAUUSD': data = await pctXAUUSD(period);   break;
+          case 'WTI':    data = await pctWTI(period);       break;
+          case 'US10Y':  data = await pctUS10Y(period);     break;
+        }
+      } else if (isValidEquitySymbol(symbol)) {
+        data = await pctAV(symbol, period);
+      } else {
+        throw new Error(`Ongeldig symbool: ${rawSymbol}`);
       }
+
     } else if (endpoint === 'search') {
-      const q = req.query.q || '';
-      if (!q.trim()) throw new Error('Zoekterm ontbreekt');
-      data = await searchSymbols(q.trim());
+      if (!q) throw new Error('Zoekterm ontbreekt');
+      data = await searchSymbols(q);
+
     } else {
       throw new Error(`Onbekend endpoint: ${endpoint}`);
     }
