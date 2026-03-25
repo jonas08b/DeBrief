@@ -872,6 +872,7 @@ function categoriseHLN(url) {
 
   // Enkel deze urls worden geaccepteerd, alle andere worden verwijderd
   if (/hln\.be\/binnenland/.test(u)) return 'binnenland';
+  if (/hln\.be\/buitenlands-voetbal/.test(u)) return 'verwijder';
   if (/hln\.be\/buitenland/.test(u)) return 'buitenland';
   if (/hln\.be\/(economie|geld|tech|wetenschap)/.test(u)) return 'economie';
   if (/hln\.be\/opinie/.test(u)) return 'opinie';
@@ -916,6 +917,14 @@ function tickProgress() {
 }
 
 // ── FETCH ONE FEED ────────────────────────────────────────────────────────────
+function decodeEntities(str) {
+  // DOMParser is de meest betrouwbare manier om HTML-entities te decoderen
+  try {
+    const doc = new DOMParser().parseFromString(str, 'text/html');
+    return doc.documentElement.textContent;
+  } catch { return str; }
+}
+
 async function fetchFeed(url, meta) {
   const api = RSS2JSON_BASE + encodeURIComponent(url);
   const res  = await fetch(api, { signal: AbortSignal.timeout(10000) });
@@ -926,7 +935,7 @@ async function fetchFeed(url, meta) {
   return data.items.map(item => {
     let image = item.thumbnail || item.enclosure?.link || null;
     if (image && /1x1|pixel|track|blank|spacer/i.test(image)) image = null;
-    const title   = (item.title || '').trim();
+    const title   = decodeEntities((item.title || '').trim());
     const link    = item.link || item.guid || '';
     const pubDate = item.pubDate || null;
     const desc    = (item.description || item.content || '').trim();
