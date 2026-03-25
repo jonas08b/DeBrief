@@ -79,7 +79,33 @@ async function quoteXAUUSD() {
   });
 }
 
-async function quoteUS10Y() {
+async function quoteBEL20() {
+  return cached('q_bel20', async () => {
+    // Stooq.com: gratis, geen key, ondersteunt Europese indices
+    const data = await fetchJSON('https://stooq.com/q/l/?s=bel20&f=sd2t2ohlcv&h&e=json');
+    const q = data?.symbols?.[0];
+    if (!q?.close) throw new Error('Geen BEL20 data');
+    const price     = parseFloat(q.close);
+    const prevClose = parseFloat(q.open); // open als proxy voor prev close
+    return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
+  });
+}
+
+async function pctBEL20(period) {
+  return cached(`pct_bel20_${period}`, async () => {
+    const startDate = periodToStartDate(period);
+    const data = await fetchJSON(`https://stooq.com/q/d/l/?s=bel20&d1=${startDate.replace(/-/g,'')}&i=d`);
+    // Stooq geeft CSV terug: Date,Open,High,Low,Close,Volume
+    const lines = data.trim().split('\n').filter(l => l && !l.startsWith('Date'));
+    if (lines.length < 2) return { dp: null };
+    const first = parseFloat(lines[0].split(',')[4]);
+    const last  = parseFloat(lines[lines.length - 1].split(',')[4]);
+    if (!first || !last) return { dp: null };
+    return { dp: ((last - first) / first) * 100 };
+  });
+}
+
+
   return cached('q_us10y', async () => {
     if (!FRED_KEY) throw new Error('FRED_API_KEY niet ingesteld');
     const data = await fetchJSON(
@@ -226,6 +252,7 @@ export default async function handler(req, res) {
       switch (symbol) {
         case 'EURUSD': data = await quoteEURUSD();  break;
         case 'XAUUSD': data = await quoteXAUUSD();  break;
+        case 'BEL20':  data = await quoteBEL20();   break;
         case 'US10Y':  data = await quoteUS10Y();   break;
         default: {
           const fhSym = FINNHUB_MAP[symbol] || symbol;
@@ -238,6 +265,7 @@ export default async function handler(req, res) {
       switch (symbol) {
         case 'EURUSD': data = await pctEURUSD(p);   break;
         case 'XAUUSD': data = await pctXAUUSD(p);   break;
+        case 'BEL20':  data = await pctBEL20(p);    break;
         case 'US10Y':  data = await pctUS10Y(p);    break;
         default: {
           const fhSym = FINNHUB_MAP[symbol] || symbol;
