@@ -1432,54 +1432,10 @@ function pctClass(val) {
   return n > 0 ? 'pos' : 'neg';
 }
 
-const AV_QUEUE_INTERVAL = 13000; // ms tussen opeenvolgende AV-calls
-let _avQueueRunning = false;
-let _avQueue = [];
- 
-function avEnqueue(fn) {
-  return new Promise((resolve, reject) => {
-    _avQueue.push({ fn, resolve, reject });
-    if (!_avQueueRunning) _avQueueDrain();
-  });
-}
- 
-async function _avQueueDrain() {
-  _avQueueRunning = true;
-  while (_avQueue.length) {
-    const { fn, resolve, reject } = _avQueue.shift();
-    try { resolve(await fn()); } catch (e) { reject(e); }
-    if (_avQueue.length) await new Promise(r => setTimeout(r, AV_QUEUE_INTERVAL));
-  }
-  _avQueueRunning = false;
-}
- 
+// ── Detail ────────────────────────────────────────────────────────────────────
 async function hydrateAllRows(tickers) {
   if (!tickers.length) return;
- 
-  const avTickers    = tickers.filter(t => isAVTicker(t));
-  const otherTickers = tickers.filter(t => !isAVTicker(t));
- 
-  // Niet-AV tickers parallel (geen rate limit)
-  await Promise.allSettled(otherTickers.map(t => hydrateRow(t)));
- 
-  // FIX #4: AV-tickers via queue — max 1 call per 13s zodat we ruim binnen 5/min blijven
-  await Promise.allSettled(avTickers.map(t => avEnqueue(() => hydrateRow(t))));
-}
-
-async function hydrateAllRows(tickers) {
-  if (!tickers.length) return;
-
-  const avTickers    = tickers.filter(t => isAVTicker(t));
-  const otherTickers = tickers.filter(t => !isAVTicker(t));
-
-  // Niet-AV tickers (EURUSD, XAUUSD, US10Y) parallel
-  await Promise.allSettled(otherTickers.map(t => hydrateRow(t)));
-
-  // AV tickers sequentieel met 300ms pauze om binnen 5 calls/min te blijven
-  for (const ticker of avTickers) {
-    await hydrateRow(ticker);
-    await new Promise(r => setTimeout(r, 300));
-  }
+  await Promise.allSettled(tickers.map(t => hydrateRow(t)));
 }
 
 async function hydrateRow(ticker) {
@@ -1663,7 +1619,7 @@ async function mktDoSearch() {
     showSearchResults(hits);
   } catch (e) {
     const msg = e.message.toLowerCase().includes('rate limit')
-      ? 'Alpha Vantage limiet bereikt. Wacht 1 minuut en probeer opnieuw.'
+      ? 'Zoeken tijdelijk niet beschikbaar. Probeer opnieuw.'
       : 'Zoeken mislukt: ' + e.message;
     errEl.textContent   = msg;
     errEl.style.display = 'block';
@@ -1679,9 +1635,8 @@ function showSearchResults(hits) {
   _searchHits = hits;
   const container = document.getElementById('marktTickerList');
   let html = '<div class="markt-section-label">Zoekresultaten</div>';
- 
+
   hits.forEach((h, i) => {
-    // FIX #3: server stuurt nu `description` (naam) en `exchange` (regio)
     const display = h.description || h.symbol;
     const exch    = h.exchange || '';
     html += `
@@ -1695,28 +1650,27 @@ function showSearchResults(hits) {
         </div>
       </div>`;
   });
- 
+
   html += `<div style="padding:12px 4px">
     <button id="marktSearchBack" style="background:none;border:none;color:var(--accent);font-family:var(--font-sans);font-size:13px;font-weight:600;cursor:pointer;padding:0">← Terug</button>
   </div>`;
   container.innerHTML = html;
- 
+
   document.getElementById('marktSearchBack').addEventListener('click', () => {
     renderTickerList();
     document.getElementById('marktSearchInput').value = '';
   });
- 
+
   container.querySelectorAll('.markt-search-result').forEach(row => {
     row.addEventListener('click', () => {
       const h      = _searchHits[parseInt(row.dataset.hitIndex)];
-      // FIX #3: gebruik h.full_name (= TV-symbool bijv. "NASDAQ:AAPL") van de server
-      const tvSym  = h.full_name || h.symbol;
+      const tvSym  = h.full_name || `${h.exchange}:${h.symbol}`;
       const ticker = {
         symbol:   h.symbol,
         src:      h.symbol,
         tv:       tvSym,
-        name:     h.description || h.symbol,  // FIX #3: correcte naam
-        type:     h.type || 'equity',
+        name:     h.description || h.symbol,
+        type:     h.type || 'stock',
         decimals: 2, prefix: '', suffix: '',
       };
       customAdd(ticker);
@@ -1725,7 +1679,6 @@ function showSearchResults(hits) {
     });
   });
 }
-
 function showDetailPanel() {
   document.getElementById('marktTickerList').style.display = 'none';
   document.getElementById('marktSearchWrap').style.display = 'none';
