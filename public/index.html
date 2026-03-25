@@ -168,6 +168,8 @@
     animation: fadeUp .3s ease both;
   }
   .article-card:active { transform: scale(.99); border-color: var(--ink-faint); }
+  .article-card.seen { opacity: .5; }
+  .article-card.seen h3 { color: var(--ink-muted); }
   .article-card-img {
     width: 96px; min-width: 96px; height: 96px;
     object-fit: cover; flex-shrink: 0; background: var(--border);
@@ -935,7 +937,7 @@ async function fetchFeed(url, meta) {
   return data.items.map(item => {
     let image = item.thumbnail || item.enclosure?.link || null;
     if (image && /1x1|pixel|track|blank|spacer/i.test(image)) image = null;
-    const title   = decodeEntities((item.title || '').trim());
+    const title   = decodeEntities(decodeEntities((item.title || '').trim()));
     const link    = item.link || item.guid || '';
     const pubDate = item.pubDate || null;
     const desc    = (item.description || item.content || '').trim();
@@ -1151,6 +1153,7 @@ function filtered() {
 function render(errors=[]) {
   const container = document.getElementById('feedContainer');
   const arts = filtered();
+  const seenMap = seenLoad();
   let html = '';
 
   if (errors.length) {
@@ -1165,7 +1168,8 @@ function render(errors=[]) {
 
   const [top, ...rest] = arts;
   const topIdx = allArticles.indexOf(top);
-  html += `<div class="top-story" data-idx="${topIdx}" style="cursor:pointer">`;
+  const topSeen = isSeen(top, seenMap);
+  html += `<div class="top-story${topSeen ? ' seen' : ''}" data-idx="${topIdx}" style="cursor:pointer">`;
   if (top.image) html += `<img class="top-story-img" src="${esc(top.image)}" alt="" loading="eager" onerror="this.style.display='none'">`;
   html += `<div class="top-story-body">`;
   html += `<div class="meta-row"><span class="label top-badge">Top verhaal</span>${rLabel(top.source.region)}${cLabel(top.cat)}</div>`;
@@ -1179,7 +1183,8 @@ function render(errors=[]) {
 
   for (const art of rest) {
     const idx = allArticles.indexOf(art);
-    html += `<div class="article-card" data-idx="${idx}" style="cursor:pointer">`;
+    const seen = isSeen(art, seenMap);
+    html += `<div class="article-card${seen ? ' seen' : ''}" data-idx="${idx}" style="cursor:pointer">`;
     if (art.image) {
       html += `<img class="article-card-img" src="${esc(art.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'article-card-placeholder'}))">`;
     } else {
@@ -1192,6 +1197,33 @@ function render(errors=[]) {
   }
 
   container.innerHTML = html;
+}
+
+// ── LEESVOORTGANG ─────────────────────────────────────────────────────────────
+const SEEN_KEY = 'debrief_seen_v1';
+const SEEN_TTL = 7 * 24 * 60 * 60 * 1000; // 7 dagen
+
+function seenLoad() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}');
+    const now = Date.now();
+    // Verwijder entries ouder dan 7 dagen
+    for (const k of Object.keys(raw)) if (now - raw[k] > SEEN_TTL) delete raw[k];
+    return raw;
+  } catch { return {}; }
+}
+function seenMark(key) {
+  try {
+    const raw = seenLoad();
+    raw[key] = Date.now();
+    localStorage.setItem(SEEN_KEY, JSON.stringify(raw));
+  } catch {}
+}
+function seenKey(art) {
+  return art.link.slice(-60); // laatste deel van URL als stabiele sleutel
+}
+function isSeen(art, seenMap) {
+  return !!seenMap[seenKey(art)];
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -1288,6 +1320,13 @@ init();
 // ── POPUP ─────────────────────────────────────────────────────────────────────
 
 function openPopup(art) {
+  // Markeer als gelezen
+  seenMark(seenKey(art));
+  // Dim de kaart meteen zonder volledige re-render
+  document.querySelectorAll(`[data-idx="${allArticles.indexOf(art)}"]`).forEach(el => {
+    el.classList.add('seen');
+  });
+
   const desc = art.desc || '';
   const clean = desc.replace(/<[^>]*>/g, '').trim();
   document.getElementById('popupTitle').textContent = art.title;
@@ -1332,6 +1371,7 @@ const WL_KEY        = 'debrief_watchlist_v2';
 const PRESET_TICKERS = [
   { symbol:'EUR/USD',    src:'EURUSD', tv:'FX:EURUSD',   name:'Euro / US Dollar',       type:'forex', decimals:4, prefix:'',  suffix:''  },
   { symbol:'XAU/USD',    src:'XAUUSD', tv:'TVC:GOLD',    name:'Goud (troy ounce)',       type:'forex', decimals:2, prefix:'$', suffix:''  },
+  { symbol:'BEL20',      src:'BEL20',  tv:'EURONEXT:BEL20', name:'BEL 20 Index',        type:'index', decimals:2, prefix:'',  suffix:''  },
   { symbol:'USO',        src:'USO',    tv:'AMEX:USO',    name:'US Oil Fund ETF (USO)',   type:'stock', decimals:2, prefix:'$', suffix:''  },
   { symbol:'US10Y',      src:'US10Y',  tv:'FRED:DGS10',  name:'US 10-jaar rente',        type:'stock', decimals:3, prefix:'',  suffix:'%' },
   { symbol:'JPMorgan',   src:'JPM',    tv:'NYSE:JPM',    name:'JPMorgan Chase & Co.',    type:'stock', decimals:2, prefix:'$', suffix:''  },
@@ -1863,6 +1903,33 @@ document.getElementById('marktDateApply').addEventListener('click', () => {
   const period = (from && to) ? 'custom' : '1year';
   buildTVWidget(mktCurrentTicker.tv, period, from, to);
 });
+
+// ── TAB SWIPE ─────────────────────────────────────────────────────────────────
+const TAB_ORDER = ['alles', 'binnenland', 'buitenland', 'politiek', 'economie', 'markt'];
+let swipeTabStartX = 0, swipeTabStartY = 0, swipeTabActive = false;
+
+document.getElementById('feedContainer').addEventListener('touchstart', e => {
+  swipeTabStartX = e.touches[0].clientX;
+  swipeTabStartY = e.touches[0].clientY;
+  swipeTabActive = true;
+}, { passive: true });
+
+document.getElementById('feedContainer').addEventListener('touchend', e => {
+  if (!swipeTabActive) return;
+  swipeTabActive = false;
+  const dx = e.changedTouches[0].clientX - swipeTabStartX;
+  const dy = e.changedTouches[0].clientY - swipeTabStartY;
+  // Alleen horizontale swipes van >60px met beperkte verticale beweging
+  if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+  const currentIdx = TAB_ORDER.indexOf(activeTab);
+  const nextIdx    = dx < 0
+    ? Math.min(currentIdx + 1, TAB_ORDER.length - 1)
+    : Math.max(currentIdx - 1, 0);
+  if (nextIdx === currentIdx) return;
+  const nextTab = TAB_ORDER[nextIdx];
+  // Activeer de tab alsof de gebruiker erop klikt
+  document.querySelector(`[data-tab="${nextTab}"]`)?.click();
+}, { passive: true });
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.getElementById('catTabs').addEventListener('click', e => {
