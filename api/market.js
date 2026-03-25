@@ -3,8 +3,7 @@
 // EUR/USD  → frankfurter.app  (gratis, geen key)
 // XAU/USD  → gold-api.com     (gratis, geen key)
 // US10Y    → FRED API          (gratis, key vereist)
-// WTI      → Finnhub           (gratis, key vereist, 60/min)
-// Aandelen → Finnhub           (gratis, key vereist, 60/min)
+// Aandelen/ETFs → Finnhub      (gratis, key vereist, 60/min)
 // Search   → Finnhub           (gratis, key vereist, 60/min)
 //
 // Cache-strategie:
@@ -94,7 +93,7 @@ async function quoteUS10Y() {
   });
 }
 
-// Finnhub quote: werkt voor aandelen, ETFs én commodities (WTI = "NYMEX:CL1!")
+// Finnhub quote: werkt voor aandelen en ETFs (JPM, URTH, USO, custom tickers)
 async function quoteFinnhub(symbol) {
   return cached(`q_fh_${symbol}`, async () => {
     if (!FINNHUB_KEY) throw new Error('FINNHUB_API_KEY niet ingesteld');
@@ -216,7 +215,6 @@ export default async function handler(req, res) {
 
   // Interne symboolmapping: preset src-waarden → Finnhub symbolen
   const FINNHUB_MAP = {
-    WTI:  'NYMEX:CL1!',  // WTI ruwe olie front-month future
     JPM:  'JPM',
     URTH: 'URTH',
   };
