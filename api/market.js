@@ -1,7 +1,8 @@
-// api/market.js — DeBrief Markt proxy v6
+// api/market.js — DeBrief Markt proxy v7
 //
 // EUR/USD  → frankfurter.app  (gratis, geen key)
 // XAU/USD  → gold-api.com     (gratis, geen key)
+// BEL20    → Stooq.com        (gratis, geen key) met Yahoo Finance fallback
 // US10Y    → FRED API          (gratis, key vereist)
 // Aandelen/ETFs → Finnhub      (gratis, key vereist, 60/min)
 // Search   → Finnhub           (gratis, key vereist, 60/min)
@@ -51,6 +52,12 @@ async function fetchJSON(url, headers = {}) {
   return res.json();
 }
 
+async function fetchText(url, headers = {}) {
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status} voor ${url}`);
+  return res.text();
+}
+
 // ── Quotes ────────────────────────────────────────────────────────────────────
 
 async function quoteEURUSD() {
@@ -81,31 +88,37 @@ async function quoteXAUUSD() {
 
 async function quoteBEL20() {
   return cached('q_bel20', async () => {
-    // Stooq.com: gratis, geen key, ondersteunt Europese indices
-    const data = await fetchJSON('https://stooq.com/q/l/?s=bel20&f=sd2t2ohlcv&h&e=json');
-    const q = data?.symbols?.[0];
-    if (!q?.close) throw new Error('Geen BEL20 data');
-    const price     = parseFloat(q.close);
-    const prevClose = parseFloat(q.open); // open als proxy voor prev close
+    // Primair: Stooq.com JSON endpoint
+    try {
+      const data = await fetchJSON('https://stooq.com/q/l/?s=bel20&f=sd2t2ohlcv&h&e=json');
+      const q = data?.symbols?.[0];
+      if (q?.close) {
+        const price     = parseFloat(q.close);
+        const prevClose = parseFloat(q.open);
+        if (price && prevClose) {
+          return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
+        }
+      }
+    } catch (e) {
+      console.warn('[market] Stooq BEL20 primair mislukt:', e.message);
+    }
+
+    // Fallback: Yahoo Finance (^BFX = BEL20)
+    const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&range=5d';
+    const yData = await fetchJSON(yahooUrl, {
+      'User-Agent': 'Mozilla/5.0',
+      'Accept': 'application/json',
+    });
+    const result = yData?.chart?.result?.[0];
+    const meta   = result?.meta;
+    if (!meta?.regularMarketPrice) throw new Error('Geen BEL20 data (Yahoo fallback ook mislukt)');
+    const price     = meta.regularMarketPrice;
+    const prevClose = meta.chartPreviousClose || meta.previousClose || price;
     return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
   });
 }
 
-async function pctBEL20(period) {
-  return cached(`pct_bel20_${period}`, async () => {
-    const startDate = periodToStartDate(period);
-    const data = await fetchJSON(`https://stooq.com/q/d/l/?s=bel20&d1=${startDate.replace(/-/g,'')}&i=d`);
-    // Stooq geeft CSV terug: Date,Open,High,Low,Close,Volume
-    const lines = data.trim().split('\n').filter(l => l && !l.startsWith('Date'));
-    if (lines.length < 2) return { dp: null };
-    const first = parseFloat(lines[0].split(',')[4]);
-    const last  = parseFloat(lines[lines.length - 1].split(',')[4]);
-    if (!first || !last) return { dp: null };
-    return { dp: ((last - first) / first) * 100 };
-  });
-}
-
-
+async function quoteUS10Y() {
   return cached('q_us10y', async () => {
     if (!FRED_KEY) throw new Error('FRED_API_KEY niet ingesteld');
     const data = await fetchJSON(
@@ -119,7 +132,7 @@ async function pctBEL20(period) {
   });
 }
 
-// Finnhub quote: werkt voor aandelen en ETFs (JPM, URTH, USO, custom tickers)
+// Finnhub quote: werkt voor aandelen en ETFs (JPM, URTH, USO, AAPL, custom tickers)
 async function quoteFinnhub(symbol) {
   return cached(`q_fh_${symbol}`, async () => {
     if (!FINNHUB_KEY) throw new Error('FINNHUB_API_KEY niet ingesteld');
@@ -175,6 +188,37 @@ async function pctXAUUSD(period) {
       `https://finnhub.io/api/v1/forex/candle?symbol=OANDA:XAU_USD&resolution=D&from=${from}&to=${to}&token=${FINNHUB_KEY}`
     );
     return pctFromCandles(res);
+  });
+}
+
+async function pctBEL20(period) {
+  return cached(`pct_bel20_${period}`, async () => {
+    // Primair: Stooq CSV
+    try {
+      const startDate = periodToStartDate(period);
+      const text = await fetchText(`https://stooq.com/q/d/l/?s=bel20&d1=${startDate.replace(/-/g,'')}&i=d`);
+      const lines = text.trim().split('\n').filter(l => l && !l.startsWith('Date'));
+      if (lines.length >= 2) {
+        const first = parseFloat(lines[0].split(',')[4]);
+        const last  = parseFloat(lines[lines.length - 1].split(',')[4]);
+        if (first && last) return { dp: ((last - first) / first) * 100 };
+      }
+    } catch (e) {
+      console.warn('[market] Stooq BEL20 pct mislukt:', e.message);
+    }
+
+    // Fallback: Yahoo Finance historische data (^BFX)
+    const { from, to } = periodToUnix(period);
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&period1=${from}&period2=${to}`;
+    const yData = await fetchJSON(yahooUrl, {
+      'User-Agent': 'Mozilla/5.0',
+      'Accept': 'application/json',
+    });
+    const closes = yData?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(Boolean);
+    if (!closes || closes.length < 2) return { dp: null };
+    const first = closes[0];
+    const last  = closes[closes.length - 1];
+    return { dp: ((last - first) / first) * 100 };
   });
 }
 
@@ -243,6 +287,8 @@ export default async function handler(req, res) {
   const FINNHUB_MAP = {
     JPM:  'JPM',
     URTH: 'URTH',
+    USO:  'USO',
+    AAPL: 'AAPL',
   };
 
   try {
