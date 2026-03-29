@@ -2,7 +2,7 @@
 //
 // EUR/USD  → frankfurter.app        (gratis, geen key)
 // XAU/USD  → gold-api.com           (gratis, geen key)
-// BEL20    → Yahoo Finance (^BFX)   (gratis, geen key)
+// Euro Stoxx 50 → Yahoo Finance (^STOXX50E) (gratis, geen key)
 // US10Y    → FRED API (DGS10)       (gratis, key vereist)
 // Aandelen/ETFs → Finnhub           (gratis, key vereist, 60/min)
 // Search   → Finnhub                (gratis, key vereist, 60/min)
@@ -88,14 +88,14 @@ async function quoteXAUUSD() {
   });
 }
 
-// BEL20 via Yahoo Finance ^BFX — gratis, geen key, betrouwbaar serverside
-async function quoteBEL20() {
-  return cached('q_bel20', async () => {
+// Euro Stoxx 50 via Yahoo Finance ^STOXX50E — gratis, geen key, betrouwbaar serverside
+async function quoteSX5E() {
+  return cached('q_sx5e', async () => {
     const data = await fetchYahoo(
-      'https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&range=5d'
+      'https://query1.finance.yahoo.com/v8/finance/chart/%5ESTOXX50E?interval=1d&range=5d'
     );
     const meta = data?.chart?.result?.[0]?.meta;
-    if (!meta?.regularMarketPrice) throw new Error('Geen BEL20 data van Yahoo Finance');
+    if (!meta?.regularMarketPrice) throw new Error('Geen Euro Stoxx 50 data van Yahoo Finance');
     const price     = meta.regularMarketPrice;
     const prevClose = meta.chartPreviousClose || meta.previousClose || price;
     return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
@@ -177,12 +177,12 @@ async function pctXAUUSD(period) {
   });
 }
 
-// BEL20 pct via Yahoo Finance historische data
-async function pctBEL20(period) {
-  return cached(`pct_bel20_${period}`, async () => {
+// Euro Stoxx 50 pct via Yahoo Finance historische data
+async function pctSX5E(period) {
+  return cached(`pct_sx5e_${period}`, async () => {
     const { from, to } = periodToUnix(period);
     const data = await fetchYahoo(
-      `https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&period1=${from}&period2=${to}`
+      `https://query1.finance.yahoo.com/v8/finance/chart/%5ESTOXX50E?interval=1d&period1=${from}&period2=${to}`
     );
     const closes = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(v => v != null);
     if (!closes || closes.length < 2) return { dp: null };
@@ -269,7 +269,7 @@ export default async function handler(req, res) {
       switch (symbol) {
         case 'EURUSD': data = await quoteEURUSD(); break;
         case 'XAUUSD': data = await quoteXAUUSD(); break;
-        case 'BEL20':  data = await quoteBEL20();  break;
+        case 'SX5E':   data = await quoteSX5E();   break;
         case 'US10Y':  data = await quoteUS10Y();  break;
         default: {
           const fhSym = FINNHUB_MAP[symbol] || symbol;
@@ -282,7 +282,7 @@ export default async function handler(req, res) {
       switch (symbol) {
         case 'EURUSD': data = await pctEURUSD(p);  break;
         case 'XAUUSD': data = await pctXAUUSD(p);  break;
-        case 'BEL20':  data = await pctBEL20(p);   break;
+        case 'SX5E':   data = await pctSX5E(p);    break;
         case 'US10Y':  data = await pctUS10Y(p);   break;
         default: {
           const fhSym = FINNHUB_MAP[symbol] || symbol;
