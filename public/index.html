@@ -486,33 +486,93 @@
     animation: spin .7s linear infinite; margin: 0 auto 8px;
   }
 
-  /* Script samenvatting */
+  /* ── DESTEM STORIES ── */
+  .destem-stories {
+    padding: 4px 20px 0; display: none;
+  }
+  .destem-stories.visible { display: block; }
+  .destem-stories-label {
+    font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+  .destem-story-card {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 11px 0; border-bottom: 1px solid var(--border);
+  }
+  .destem-story-card:last-child { border-bottom: none; }
+  .destem-story-rank {
+    font-family: var(--font-serif); font-size: 22px; line-height: 1;
+    color: var(--ink-faint); min-width: 24px; padding-top: 2px;
+    flex-shrink: 0;
+  }
+  .destem-story-card.rank-1 .destem-story-rank { color: var(--accent); }
+  .destem-story-body { flex: 1; min-width: 0; }
+  .destem-story-title {
+    font-size: 13px; font-weight: 600; color: var(--ink);
+    line-height: 1.4; margin-bottom: 4px;
+  }
+  .destem-story-summary {
+    font-size: 12px; color: var(--ink-muted); line-height: 1.5;
+  }
+  .destem-story-source {
+    font-size: 10px; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-faint);
+    margin-top: 4px;
+  }
+
+  /* Script tekst */
   .destem-script {
     margin: 0 20px; padding: 14px 16px;
     background: var(--bg); border: 1px solid var(--border);
     border-radius: 10px; font-size: 13px; line-height: 1.65;
-    color: var(--ink-muted); max-height: 160px; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    display: none;
+    color: var(--ink-muted); max-height: 200px; overflow-y: auto;
+    -webkit-overflow-scrolling: touch; display: none;
   }
   .destem-script.visible { display: block; }
-  .destem-script-toggle {
-    display: flex; align-items: center; gap: 5px;
+
+  /* Uitklap-rij (verhalen / script toggle) */
+  .destem-expand-row {
+    display: none; align-items: center; justify-content: space-between;
+    padding: 10px 20px 0;
+  }
+  .destem-expand-row.visible { display: flex; }
+  .destem-expand-tab {
     background: none; border: none; cursor: pointer;
     font-family: var(--font-sans); font-size: 12px; font-weight: 600;
-    color: var(--ink-faint); padding: 10px 20px 0;
+    color: var(--ink-faint); padding: 4px 0;
+    border-bottom: 2px solid transparent;
+    -webkit-tap-highlight-color: transparent; transition: color .15s;
+  }
+  .destem-expand-tab.active {
+    color: var(--ink); border-bottom-color: var(--accent);
+  }
+
+  /* Stemkeuze */
+  .destem-voice-row {
+    display: none; align-items: center; gap: 8px;
+    padding: 12px 20px 0; flex-wrap: wrap;
+  }
+  .destem-voice-row.visible { display: flex; }
+  .destem-voice-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .destem-voice-chip {
+    font-size: 11px; font-weight: 600; padding: 4px 11px;
+    border-radius: 20px; border: 1.5px solid var(--border);
+    background: none; color: var(--ink-muted); cursor: pointer;
+    font-family: var(--font-sans); transition: all .15s;
     -webkit-tap-highlight-color: transparent;
   }
-  .destem-script-toggle svg {
-    width: 14px; height: 14px; stroke: currentColor; fill: none;
-    stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
-    transition: transform .2s;
+  .destem-voice-chip.active {
+    background: var(--ink); border-color: var(--ink); color: var(--bg);
   }
-  .destem-script-toggle.open svg { transform: rotate(180deg); }
 
   @media (prefers-color-scheme: dark) {
     .destem-play-btn { background: var(--ink); }
-    .destem-script { background: var(--bg); }
+    .destem-script   { background: var(--bg); }
   }
 
   /* ── MARKT PANEL ── */
@@ -2161,6 +2221,8 @@ document.getElementById('catTabs').addEventListener('click', e => {
     </div>
     <button class="destem-close" id="destemClose" aria-label="Sluiten">&#x2715;</button>
   </div>
+
+  <!-- Audiospeler -->
   <div class="destem-player">
     <div class="destem-status" id="destemStatus">
       <div>
@@ -2194,19 +2256,36 @@ document.getElementById('catTabs').addEventListener('click', e => {
       </button>
     </div>
   </div>
-  <button class="destem-script-toggle" id="destemScriptToggle" style="display:none">
-    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-    Lees script
-  </button>
+
+  <!-- Tab-balk: Verhalen / Script -->
+  <div class="destem-expand-row" id="destemExpandRow">
+    <div style="display:flex;gap:16px">
+      <button class="destem-expand-tab active" data-panel="stories">5 verhalen</button>
+      <button class="destem-expand-tab" data-panel="script">Script</button>
+    </div>
+    <!-- Stemkeuze inline rechts -->
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="destem-voice-label">Stem</span>
+      <div id="destemVoiceChips" style="display:flex;gap:5px"></div>
+    </div>
+  </div>
+
+  <!-- Verhalen-lijst -->
+  <div class="destem-stories" id="destemStories">
+    <div id="destemStoriesList"></div>
+  </div>
+
+  <!-- Script tekst -->
   <div class="destem-script" id="destemScript"></div>
 </div>
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DESTEM — Audio briefing
+// DESTEM — Audio briefing (v2: verhalen, stemkeuze)
 // ══════════════════════════════════════════════════════════════════════════════
 
 (function() {
+  // ── DOM refs ──────────────────────────────────────────────────────────────
   const btn           = document.getElementById('destemBtn');
   const overlay       = document.getElementById('destemOverlay');
   const sheet         = document.getElementById('destemSheet');
@@ -2225,15 +2304,26 @@ document.getElementById('catTabs').addEventListener('click', e => {
   const timeTot       = document.getElementById('destemTimeTot');
   const timesEl       = document.getElementById('destemTimes');
   const scriptDiv     = document.getElementById('destemScript');
-  const scriptToggle  = document.getElementById('destemScriptToggle');
+  const storiesDiv    = document.getElementById('destemStories');
+  const storiesList   = document.getElementById('destemStoriesList');
+  const expandRow     = document.getElementById('destemExpandRow');
+  const voiceChips    = document.getElementById('destemVoiceChips');
   const dateLabel     = document.getElementById('destemDateLabel');
 
-  let audio     = null;
-  let loaded    = false;
-  let loading   = false;
-  let rafId     = null;
+  // ── State ─────────────────────────────────────────────────────────────────
+  let audio        = null;
+  let loaded       = false;
+  let loading      = false;
+  let rafId        = null;
+  let activePanel  = 'stories'; // 'stories' | 'script'
+  let activeVoice  = localStorage.getItem('destem_voice') || 'Aoede';
+  let currentMeta  = null;
 
-  // ── Open / Sluit ────────────────────────────────────────────────────────────
+  const VOICES = {
+    Aoede: 'Aoede', Charon: 'Charon', Fenrir: 'Fenrir', Kore: 'Kore', Puck: 'Puck',
+  };
+
+  // ── Open / Sluit ──────────────────────────────────────────────────────────
   function openSheet() {
     overlay.classList.add('open');
     sheet.classList.add('open');
@@ -2255,12 +2345,50 @@ document.getElementById('catTabs').addEventListener('click', e => {
 
   // Swipe-down sluiten
   let _swipeY = 0;
-  sheet.addEventListener('touchstart', e => { _swipeY = e.touches[0].clientY; }, { passive:true });
+  sheet.addEventListener('touchstart', e => { _swipeY = e.touches[0].clientY; }, { passive: true });
   sheet.addEventListener('touchend',   e => {
     if (e.changedTouches[0].clientY - _swipeY > 70) closeSheet();
-  }, { passive:true });
+  }, { passive: true });
 
-  // ── Laad briefing ──────────────────────────────────────────────────────────
+  // ── Tab-balk: Verhalen / Script ───────────────────────────────────────────
+  document.getElementById('destemExpandRow').addEventListener('click', e => {
+    const tab = e.target.closest('[data-panel]');
+    if (!tab) return;
+    activePanel = tab.dataset.panel;
+    document.querySelectorAll('.destem-expand-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.panel === activePanel));
+    storiesDiv.classList.toggle('visible', activePanel === 'stories');
+    scriptDiv.classList.toggle('visible',  activePanel === 'script');
+  });
+
+  // ── Stemkeuze ─────────────────────────────────────────────────────────────
+  function renderVoiceChips() {
+    voiceChips.innerHTML = Object.keys(VOICES).map(v =>
+      `<button class="destem-voice-chip${v === activeVoice ? ' active' : ''}" data-voice="${v}">${v}</button>`
+    ).join('');
+  }
+
+  voiceChips.addEventListener('click', e => {
+    const chip = e.target.closest('[data-voice]');
+    if (!chip) return;
+    activeVoice = chip.dataset.voice;
+    localStorage.setItem('destem_voice', activeVoice);
+    renderVoiceChips();
+    // Als er al een briefing geladen is met een andere stem, opnieuw laden
+    if (currentMeta && currentMeta.voice !== activeVoice) {
+      loaded  = false;
+      loading = false;
+      if (audio) { audio.pause(); audio = null; }
+      playBtn.classList.remove('playing');
+      btn.classList.remove('playing');
+      cancelAnimationFrame(rafId);
+      loadBriefing();
+    }
+  });
+
+  renderVoiceChips();
+
+  // ── Laad briefing ─────────────────────────────────────────────────────────
   async function loadBriefing() {
     loading = true;
     setStatus('Briefing laden…', true);
@@ -2269,27 +2397,40 @@ document.getElementById('catTabs').addEventListener('click', e => {
       const res  = await fetch('/api/destem', { signal: AbortSignal.timeout(12000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Onbekende fout');
+      currentMeta = data;
 
-      // Toon datum
+      // Datum
       const d = new Date(data.date);
       dateLabel.textContent = d.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' });
 
-      // Toon script-toggle
-      if (data.script) {
-        scriptDiv.textContent = data.script;
-        scriptToggle.style.display = 'flex';
+      // Verhalen
+      if (Array.isArray(data.stories) && data.stories.length) {
+        renderStories(data.stories);
+      } else {
+        storiesList.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);padding:8px 0">Geen verhalenlijst beschikbaar.</p>';
       }
 
-      // Laad audio
+      // Script
+      if (data.script) {
+        scriptDiv.textContent = data.script;
+      }
+
+      // Toon uitklap-rij
+      expandRow.classList.add('visible');
+      // Standaard: verhalen zichtbaar
+      storiesDiv.classList.add('visible');
+      scriptDiv.classList.remove('visible');
+
+      // Audio laden
       audio = new Audio(data.audioUrl);
       audio.preload = 'auto';
 
       audio.addEventListener('loadedmetadata', () => {
-        timeTot.textContent = fmt(audio.duration);
-        statusDiv.style.display = 'none';
-        controls.style.display  = 'flex';
+        timeTot.textContent        = fmt(audio.duration);
+        statusDiv.style.display    = 'none';
+        controls.style.display     = 'flex';
         progressWrap.style.display = 'block';
-        timesEl.style.display   = 'flex';
+        timesEl.style.display      = 'flex';
         loaded  = true;
         loading = false;
       });
@@ -2306,14 +2447,42 @@ document.getElementById('catTabs').addEventListener('click', e => {
       });
 
     } catch (err) {
-      setStatus(err.message.includes('404') || err.message.includes('Nog geen')
-        ? 'De ochtendbriefing is nog niet klaar. Kom na 06:00 terug.'
-        : 'Kon briefing niet laden: ' + err.message, false);
+      const isNotReady = err.message.includes('404') || err.message.includes('Nog geen') || err.message.includes('not found');
+      setStatus(
+        isNotReady
+          ? 'De ochtendbriefing is nog niet klaar. Kom na 06:00 terug.'
+          : 'Kon briefing niet laden: ' + err.message,
+        false
+      );
       loading = false;
     }
   }
 
-  // ── Afspelen / pauzeren ────────────────────────────────────────────────────
+  // ── Verhalen renderen ─────────────────────────────────────────────────────
+  const SOURCE_LABELS = { vrt:'VRT Nieuws', hln:'HLN', wsj:'WSJ', euronews:'Euronews' };
+
+  function renderStories(stories) {
+    const sorted = [...stories].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+    storiesList.innerHTML = sorted.map(s => {
+      const src   = SOURCE_LABELS[s.source] || s.source || '';
+      const rank1 = s.rank === 1 ? ' rank-1' : '';
+      return `
+        <div class="destem-story-card${rank1}">
+          <div class="destem-story-rank">${s.rank}</div>
+          <div class="destem-story-body">
+            <div class="destem-story-title">${esc(s.title)}</div>
+            <div class="destem-story-summary">${esc(s.summary)}</div>
+            ${src ? `<div class="destem-story-source">${esc(src)}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Afspelen / pauzeren ───────────────────────────────────────────────────
   playBtn.addEventListener('click', () => {
     if (!audio) return;
     if (audio.paused) {
@@ -2332,13 +2501,13 @@ document.getElementById('catTabs').addEventListener('click', e => {
   rewindBtn.addEventListener('click',  () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); });
   forwardBtn.addEventListener('click', () => { if (audio) audio.currentTime = Math.min(audio.duration, audio.currentTime + 15); });
 
-  // ── Voortgangsbalk ─────────────────────────────────────────────────────────
+  // ── Voortgangsbalk ────────────────────────────────────────────────────────
   function tick() {
     if (!audio || audio.paused) return;
     const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
     progressFill.style.width = pct + '%';
     progressThumb.style.left = pct + '%';
-    timeCur.textContent = fmt(audio.currentTime);
+    timeCur.textContent      = fmt(audio.currentTime);
     rafId = requestAnimationFrame(tick);
   }
 
@@ -2346,34 +2515,28 @@ document.getElementById('catTabs').addEventListener('click', e => {
     if (!audio || !audio.duration) return;
     const rect = progressWrap.getBoundingClientRect();
     const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audio.currentTime = pct * audio.duration;
+    audio.currentTime        = pct * audio.duration;
     progressFill.style.width = (pct * 100) + '%';
     progressThumb.style.left = (pct * 100) + '%';
   });
 
-  // ── Script toggle ──────────────────────────────────────────────────────────
-  scriptToggle.addEventListener('click', () => {
-    const open = scriptDiv.classList.toggle('visible');
-    scriptToggle.classList.toggle('open', open);
-    scriptToggle.querySelector('span:last-of-type') // update label text via data
-    scriptToggle.childNodes.forEach(n => { if (n.nodeType === 3) n.textContent = open ? ' Verberg script' : ' Lees script'; });
-  });
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   function fmt(s) {
     if (!s || isNaN(s)) return '0:00';
     const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return m + ':' + String(sec).padStart(2, '0');
+    return m + ':' + String(Math.floor(s % 60)).padStart(2, '0');
   }
 
-  function setStatus(msg, loading) {
-    statusDiv.style.display = 'flex';
-    controls.style.display  = 'none';
+  function setStatus(msg, isLoading) {
+    statusDiv.style.display    = 'flex';
+    controls.style.display     = 'none';
     progressWrap.style.display = 'none';
-    timesEl.style.display   = 'none';
-    spinner.style.display   = loading ? 'block' : 'none';
-    statusText.textContent  = msg;
+    timesEl.style.display      = 'none';
+    expandRow.classList.remove('visible');
+    storiesDiv.classList.remove('visible');
+    scriptDiv.classList.remove('visible');
+    spinner.style.display      = isLoading ? 'block' : 'none';
+    statusText.textContent     = msg;
   }
 })();
 
