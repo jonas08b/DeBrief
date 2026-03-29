@@ -157,13 +157,45 @@ async function textToSpeech(script, geminiKey, voiceName = 'Aoede') {
 
   const json = await res.json();
   const b64  = json?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  const mime = json?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType || 'audio/mp3';
   if (!b64) throw new Error('Gemini TTS: geen audio in response');
 
+  // Decodeer base64 → raw PCM bytes
   const binary = atob(b64);
-  const bytes  = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return { bytes, mime };
+  const pcm    = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) pcm[i] = binary.charCodeAt(i);
+
+  // Gemini geeft raw PCM (24kHz, 16-bit, mono) — voeg WAV header toe zodat browsers het kunnen afspelen
+  const sampleRate    = 24000;
+  const numChannels   = 1;
+  const bitsPerSample = 16;
+  const byteRate      = sampleRate * numChannels * bitsPerSample / 8;
+  const blockAlign    = numChannels * bitsPerSample / 8;
+  const dataSize      = pcm.length;
+  const buffer        = new ArrayBuffer(44 + dataSize);
+  const view          = new DataView(buffer);
+
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeStr(0,  'RIFF');
+  view.setUint32(4,  36 + dataSize, true);
+  writeStr(8,  'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16,            true);
+  view.setUint16(20, 1,             true); // PCM
+  view.setUint16(22, numChannels,   true);
+  view.setUint32(24, sampleRate,    true);
+  view.setUint32(28, byteRate,      true);
+  view.setUint16(32, blockAlign,    true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const wav = new Uint8Array(buffer);
+  wav.set(pcm, 44);
+
+  return { bytes: wav, mime: 'audio/wav' };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,7 +203,7 @@ async function textToSpeech(script, geminiKey, voiceName = 'Aoede') {
 // ─────────────────────────────────────────────────────────────────────────────
 async function saveBriefing({ audioBytes, mime, script, stories, date, voice }) {
   const dateStr   = date.toISOString().slice(0, 10);
-  const audioBlob = await put(`destem/${dateStr}.mp3`, audioBytes, {
+  const audioBlob = await put(`destem/${dateStr}.wav`, audioBytes, {
     access: 'public', contentType: mime, addRandomSuffix: false,
   });
 
