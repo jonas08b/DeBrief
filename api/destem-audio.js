@@ -1,14 +1,14 @@
 /**
  * DeStem — GET /api/destem-audio
  *
- * Proxiet het audio-bestand vanuit Vercel Blob naar de browser.
- * Dit vermijdt CORS- en mixed-content problemen bij directe Blob-URL's.
+ * Stream-proxy voor het WAV-bestand vanuit Vercel Blob.
+ * Ondersteunt Range requests (scrubben in de browser).
  *
  * Query params:
- *   ?date=YYYY-MM-DD   — welke dag (verplicht)
- *
- * Geeft de WAV-bytes terug met correcte headers voor audio streaming.
+ *   ?date=YYYY-MM-DD   — verplicht
  */
+
+export const config = { runtime: 'nodejs' };
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -17,67 +17,62 @@ export default async function handler(req, res) {
 
   const storeUrl = process.env.BLOB_STORE_URL;
   if (!storeUrl) {
-    return res.status(500).json({ error: 'BLOB_STORE_URL omgevingsvariabele ontbreekt' });
+    return res.status(500).json({ error: 'BLOB_STORE_URL ontbreekt' });
   }
 
   const dateStr = req.query?.date;
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return res.status(400).json({ error: 'Verplichte query param ?date=YYYY-MM-DD ontbreekt of ongeldig' });
+    return res.status(400).json({ error: 'Verplichte query param ?date=YYYY-MM-DD ontbreekt' });
   }
 
   const blobUrl = `${storeUrl.replace(/\/$/, '')}/destem/${dateStr}.wav`;
 
   try {
+    const rangeHeader = req.headers['range'];
+
     const upstream = await fetch(blobUrl, {
+      headers: rangeHeader ? { Range: rangeHeader } : {},
       signal: AbortSignal.timeout(30000),
     });
 
-    if (!upstream.ok) {
+    if (!upstream.ok && upstream.status !== 206) {
       return res.status(upstream.status).json({
-        error: `Audio bestand niet gevonden voor ${dateStr}`,
+        error: `Audio niet gevonden voor ${dateStr}`,
       });
     }
 
-    const contentLength = upstream.headers.get('content-length');
-    const rangeHeader   = req.headers['range'];
+    // Kopieer relevante headers
+    res.status(upstream.status);
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
 
-    // Ondersteun Range requests (voor scrubben in de browser)
-    if (rangeHeader && contentLength) {
-      const total = parseInt(contentLength, 10);
-      const [startStr, endStr] = rangeHeader.replace('bytes=', '').split('-');
-      const start = parseInt(startStr, 10);
-      const end   = endStr ? parseInt(endStr, 10) : total - 1;
-      const chunk = end - start + 1;
-
-      // Haal alleen het gewenste stuk op via Blob (Range passthrough)
-      const rangeRes = await fetch(blobUrl, {
-        headers: { Range: `bytes=${start}-${end}` },
-        signal: AbortSignal.timeout(30000),
-      });
-
-      res.status(206);
-      res.setHeader('Content-Range',  `bytes ${start}-${end}/${total}`);
-      res.setHeader('Accept-Ranges',  'bytes');
-      res.setHeader('Content-Length', chunk);
-      res.setHeader('Content-Type',   'audio/wav');
-      res.setHeader('Cache-Control',  'public, max-age=86400');
-
-      const buf = Buffer.from(await rangeRes.arrayBuffer());
-      return res.end(buf);
+    const forward = ['content-length', 'content-range'];
+    for (const h of forward) {
+      const v = upstream.headers.get(h);
+      if (v) res.setHeader(h, v);
     }
 
-    // Geen Range: stuur de volledige file
-    res.status(200);
-    res.setHeader('Content-Type',   'audio/wav');
-    res.setHeader('Accept-Ranges',  'bytes');
-    res.setHeader('Cache-Control',  'public, max-age=86400');
-    if (contentLength) res.setHeader('Content-Length', contentLength);
+    // Stream door — geen arrayBuffer() buffering
+    const reader = upstream.body.getReader();
+    const pump = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const ok = res.write(Buffer.from(value));
+        if (!ok) await new Promise(r => res.once('drain', r));
+      }
+      res.end();
+    };
 
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    return res.end(buf);
+    await pump();
 
   } catch (err) {
     console.error('[DeStem audio proxy]', err);
-    return res.status(500).json({ error: err.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.end();
+    }
   }
 }
