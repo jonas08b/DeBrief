@@ -11,6 +11,9 @@
   "functions": {
     "api/destem-generate.js": {
       "maxDuration": 120
+    },
+    "api/destem-audio.js": {
+      "maxDuration": 30
     }
   }
 }
