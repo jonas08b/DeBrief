@@ -166,14 +166,14 @@ async function pctEURUSD(period) {
   });
 }
 
+// Goud pct via Yahoo Finance (GC=F = Gold futures front-month)
 async function pctXAUUSD(period) {
   return cached(`pct_xauusd_${period}`, async () => {
-    if (!FINNHUB_KEY) return { dp: null };
     const { from, to } = periodToUnix(period);
-    const res = await fetchJSON(
-      `https://finnhub.io/api/v1/forex/candle?symbol=OANDA:XAU_USD&resolution=D&from=${from}&to=${to}&token=${FINNHUB_KEY}`
+    const data = await fetchYahoo(
+      `https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=1d&period1=${from}&period2=${to}`
     );
-    return pctFromCandles(res);
+    return pctFromYahooChart(data);
   });
 }
 
@@ -210,22 +210,23 @@ async function pctUS10Y(period) {
   });
 }
 
-// Universele pct via Finnhub stock candles
+// Universele pct via Yahoo Finance — werkt voor stocks en ETFs (JPM, BNO, URTH, ...)
 async function pctFinnhub(symbol, period) {
-  return cached(`pct_fh_${symbol}_${period}`, async () => {
-    if (!FINNHUB_KEY) return { dp: null };
+  return cached(`pct_yf_${symbol}_${period}`, async () => {
     const { from, to } = periodToUnix(period);
-    const res = await fetchJSON(
-      `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${from}&to=${to}&token=${FINNHUB_KEY}`
+    const data = await fetchYahoo(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${from}&period2=${to}`
     );
-    return pctFromCandles(res);
+    return pctFromYahooChart(data);
   });
 }
 
-function pctFromCandles(res) {
-  if (res?.s !== 'ok' || !res.c?.length || res.c.length < 2) return { dp: null };
-  const first = res.c[0];
-  const last  = res.c[res.c.length - 1];
+// Herbruikbare helper: extraheert eerste-vs-laatste close uit Yahoo Finance v8 response
+function pctFromYahooChart(data) {
+  const closes = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(v => v != null);
+  if (!closes || closes.length < 2) return { dp: null };
+  const first = closes[0];
+  const last  = closes[closes.length - 1];
   return { dp: ((last - first) / first) * 100 };
 }
 
