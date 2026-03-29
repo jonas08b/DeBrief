@@ -3,15 +3,21 @@
  *
  * Stappen:
  *  1. Haal de nieuwsfeed op (RSS via rss2json)
- *  2. Laat Groq de 5 belangrijkste verhalen selecteren + script schrijven
- *  3. Converteer het script naar audio via Gemini 2.5 Flash TTS
- *  4. Sla het resultaat op in Vercel Blob
+ *  2. Groq: selecteer 5 verhalen als JSON + schrijf radioscript (één call)
+ *  3. Gemini 2.5 Flash TTS: script → audio (MP3)
+ *  4. Sla alles op in Vercel Blob
  *
- * Vercel Cron: dagelijks om 06:00 BE-tijd (UTC+1/+2 → 05:00 UTC in zomer)
- * Stel in vercel.json in: "crons": [{ "path": "/api/destem-generate", "schedule": "0 5 * * *" }]
+ * Vercel Cron: dagelijks om 05:00 UTC (= 07:00 CEST / 06:00 CET)
+ * vercel.json: "crons": [{ "path": "/api/destem-generate", "schedule": "0 5 * * *" }]
+ *
+ * Env vars:
+ *   GROQ_API_KEY            — Groq Cloud
+ *   GEMINI_API_KEY          — Google AI Studio
+ *   BLOB_READ_WRITE_TOKEN   — Vercel Blob
+ *   CRON_SECRET             — (optioneel) Bearer token
  */
 
-import { put, list } from '@vercel/blob';
+import { put } from '@vercel/blob';
 
 const RSS2JSON_BASE =
   'https://api.rss2json.com/v1/api.json?api_key=goxrkjvrqv2dqaaj0mybmnl0vyjxhqccxlh906cv&count=30&rss_url=';
@@ -22,6 +28,14 @@ const FEED_URLS = [
   'https://feeds.content.dowjones.io/public/rss/RSSWorldNews',
   'https://www.euronews.com/rss?format=mrss&level=theme&name=news',
 ];
+
+export const VOICES = {
+  Aoede:  'Aoede',
+  Charon: 'Charon',
+  Fenrir: 'Fenrir',
+  Kore:   'Kore',
+  Puck:   'Puck',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stap 1 — RSS ophalen
@@ -35,8 +49,9 @@ async function fetchItems(url) {
     const data = await res.json();
     if (data.status !== 'ok' || !Array.isArray(data.items)) return [];
     return data.items.map((i) => ({
-      title: (i.title || '').trim(),
-      desc:  (i.description || i.content || '').replace(/<[^>]*>/g, '').trim().slice(0, 300),
+      title:  (i.title || '').trim(),
+      desc:   (i.description || i.content || '').replace(/<[^>]*>/g, '').trim().slice(0, 300),
+      source: new URL(url).hostname.replace('www.', '').split('.')[0],
     }));
   } catch {
     return [];
@@ -44,20 +59,34 @@ async function fetchItems(url) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stap 2 — Groq: selecteer 5 verhalen + schrijf script
+// Stap 2 — Groq: verhalen + script in één call
 // ─────────────────────────────────────────────────────────────────────────────
-async function generateScript(items, groqKey) {
+async function generateContent(items, groqKey) {
+  const now      = new Date();
+  const dagNaam  = now.toLocaleDateString('nl-BE', { weekday: 'long' });
+  const datumStr = now.toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+
   const artikelsJson = JSON.stringify(
-    items.slice(0, 60).map((a, i) => ({ i, title: a.title, desc: a.desc }))
+    items.slice(0, 60).map((a, i) => ({ i, t: a.title, d: a.desc, s: a.source }))
   );
 
-  const prompt = `Je bent een Vlaamse radionieuwslezer. Je krijgt een lijst nieuwsartikels van vandaag.
+  const prompt = `Je bent een Vlaamse radionieuwsredacteur. Vandaag is het ${dagNaam} ${datumStr}.
 
-Taak:
-1. Kies de 5 meest nieuwswaardige verhalen. Geef prioriteit aan politiek en economie boven lokaal nieuws, sport of entertainment. Sport mag NIET worden opgenomen.
-2. Schrijf een vloeiend, journalistiek Nederlandstalig radioscript van ongeveer 3 minuten (±450 woorden). Gebruik natuurlijke overgangszinnen tussen de verhalen. Begin met een korte begroeting zoals "Goedemorgen, hier is uw DeStem briefing van [dag] [datum]." Eindig met een afsluiting. Gebruik geen koppen of opsommingen — alleen doorlopende tekst.
+Je krijgt nieuwsartikels. Geef je antwoord in twee delen:
 
-Geef ALLEEN het script terug, geen uitleg of opmaak.
+DEEL 1 — Verhalen (JSON tussen <stories>…</stories>):
+Kies de 5 meest nieuwswaardige artikels. Prioriteit: politiek en economie gaan altijd vóór regionaal nieuws of entertainment. Sport mag NIET worden opgenomen.
+Geef voor elk:
+  rank (1–5), title (correct Nederlands, vertaal indien nodig), summary (max 25 woorden, kernboodschap), source (kopieer "s"-veld)
+
+<stories>
+[{"rank":1,"title":"…","summary":"…","source":"…"},…]
+</stories>
+
+DEEL 2 — Radioscript (direct na </stories>, geen extra uitleg):
+Vloeiend journalistiek script in het Nederlands, ±450 woorden (~3 min).
+Begin: "Goedemorgen, hier is uw DeStem briefing van ${dagNaam} ${datumStr}."
+Gebruik overgangszinnen. Geen koppen of opsommingen. Sluit af met een korte afsluiting.
 
 Artikels:
 ${artikelsJson}`;
@@ -70,11 +99,11 @@ ${artikelsJson}`;
     },
     body: JSON.stringify({
       model:       'llama-3.3-70b-versatile',
-      temperature: 0.4,
-      max_tokens:  700,
+      temperature: 0.35,
+      max_tokens:  950,
       messages:    [{ role: 'user', content: prompt }],
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(45000),
   });
 
   if (!res.ok) {
@@ -83,13 +112,26 @@ ${artikelsJson}`;
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '';
+  const raw  = data.choices?.[0]?.message?.content?.trim() || '';
+
+  // Extraheer stories
+  let stories = [];
+  const m = raw.match(/<stories>([\s\S]*?)<\/stories>/);
+  if (m) {
+    try { stories = JSON.parse(m[1].trim()); } catch { stories = []; }
+  }
+
+  // Script = alles na </stories>
+  const script = raw.replace(/<stories>[\s\S]*?<\/stories>/, '').trim();
+  if (!script) throw new Error('Groq gaf geen script terug');
+
+  return { stories, script };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stap 3 — Gemini TTS: script → audio (MP3)
+// Stap 3 — Gemini TTS
 // ─────────────────────────────────────────────────────────────────────────────
-async function textToSpeech(script, geminiKey) {
+async function textToSpeech(script, geminiKey, voiceName = 'Aoede') {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${geminiKey}`,
     {
@@ -100,13 +142,11 @@ async function textToSpeech(script, geminiKey) {
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Aoede' }, // heldere, neutrale stem
-            },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName } },
           },
         },
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(90000),
     }
   );
 
@@ -115,45 +155,37 @@ async function textToSpeech(script, geminiKey) {
     throw new Error(`Gemini TTS ${res.status}: ${JSON.stringify(err)}`);
   }
 
-  const data   = await res.json();
-  const b64    = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  const mime   = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType || 'audio/mp3';
-
+  const json = await res.json();
+  const b64  = json?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  const mime = json?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType || 'audio/mp3';
   if (!b64) throw new Error('Gemini TTS: geen audio in response');
 
-  // Decodeer base64 → Uint8Array
   const binary = atob(b64);
   const bytes  = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
   return { bytes, mime };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stap 4 — Sla op in Vercel Blob
+// Stap 4 — Vercel Blob
 // ─────────────────────────────────────────────────────────────────────────────
-async function saveBriefing(audioBytes, mime, script, date) {
-  const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
-
-  // Sla audio op
+async function saveBriefing({ audioBytes, mime, script, stories, date, voice }) {
+  const dateStr   = date.toISOString().slice(0, 10);
   const audioBlob = await put(`destem/${dateStr}.mp3`, audioBytes, {
-    access:      'public',
-    contentType: mime,
-    addRandomSuffix: false,
+    access: 'public', contentType: mime, addRandomSuffix: false,
   });
 
-  // Sla metadata + script op als JSON
   const meta = {
-    date:    dateStr,
-    audioUrl: audioBlob.url,
+    date:        dateStr,
+    audioUrl:    audioBlob.url,
     script,
+    stories,
+    voice,
     generatedAt: new Date().toISOString(),
   };
 
-  await put(`destem/${dateStr}.json`, JSON.stringify(meta), {
-    access:      'public',
-    contentType: 'application/json',
-    addRandomSuffix: false,
+  await put(`destem/${dateStr}.json`, JSON.stringify(meta, null, 2), {
+    access: 'public', contentType: 'application/json', addRandomSuffix: false,
   });
 
   return meta;
@@ -163,7 +195,6 @@ async function saveBriefing(audioBytes, mime, script, date) {
 // Handler
 // ─────────────────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  // Vercel Cron stuurt een GET; beveilig met een geheim token om misbruik te voorkomen
   const authHeader = req.headers['authorization'] || '';
   const cronSecret = process.env.CRON_SECRET || '';
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -172,33 +203,21 @@ export default async function handler(req, res) {
 
   const GROQ_API_KEY   = process.env.GROQ_API_KEY;
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
   if (!GROQ_API_KEY)   return res.status(500).json({ error: 'GROQ_API_KEY ontbreekt' });
   if (!GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY ontbreekt' });
 
-  const today = new Date();
+  // Optionele stem via query param (?voice=Kore) — handig voor handmatig testen
+  const voice = VOICES[req.query?.voice] ? req.query.voice : 'Aoede';
 
   try {
-    // 1. Haal feeds op
-    const allItems = (
-      await Promise.all(FEED_URLS.map(fetchItems))
-    ).flat();
+    const allItems = (await Promise.all(FEED_URLS.map(fetchItems))).flat();
+    if (allItems.length < 5) return res.status(502).json({ error: 'Te weinig artikels' });
 
-    if (allItems.length < 5) {
-      return res.status(502).json({ error: 'Te weinig artikels opgehaald' });
-    }
+    const { stories, script } = await generateContent(allItems, GROQ_API_KEY);
+    const { bytes, mime }     = await textToSpeech(script, GEMINI_API_KEY, voice);
+    const meta                = await saveBriefing({ audioBytes: bytes, mime, script, stories, date: new Date(), voice });
 
-    // 2. Script genereren via Groq
-    const script = await generateScript(allItems, GROQ_API_KEY);
-    if (!script) return res.status(500).json({ error: 'Leeg script van Groq' });
-
-    // 3. Audio genereren via Gemini TTS
-    const { bytes, mime } = await textToSpeech(script, GEMINI_API_KEY);
-
-    // 4. Opslaan
-    const meta = await saveBriefing(bytes, mime, script, today);
-
-    return res.status(200).json({ ok: true, ...meta });
+    return res.status(200).json({ ok: true, storiesCount: stories.length, ...meta });
   } catch (err) {
     console.error('[DeStem generate]', err);
     return res.status(500).json({ error: err.message });
