@@ -1,5 +1,11 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/public/$1" }
+  ],
+  "crons": [
+    {
+      "path": "/api/destem-generate",
+      "schedule": "0 5 * * *"
+    }
   ]
 }
