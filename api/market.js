@@ -1,11 +1,11 @@
-// api/market.js — DeBrief Markt proxy v7
+// api/market.js — DeBrief Markt proxy v8
 //
-// EUR/USD  → frankfurter.app  (gratis, geen key)
-// XAU/USD  → gold-api.com     (gratis, geen key)
-// BEL20    → Stooq.com        (gratis, geen key) met Yahoo Finance fallback
-// US10Y    → FRED API          (gratis, key vereist)
-// Aandelen/ETFs → Finnhub      (gratis, key vereist, 60/min)
-// Search   → Finnhub           (gratis, key vereist, 60/min)
+// EUR/USD  → frankfurter.app        (gratis, geen key)
+// XAU/USD  → gold-api.com           (gratis, geen key)
+// BEL20    → Yahoo Finance (^BFX)   (gratis, geen key)
+// US10Y    → FRED API (DGS10)       (gratis, key vereist)
+// Aandelen/ETFs → Finnhub           (gratis, key vereist, 60/min)
+// Search   → Finnhub                (gratis, key vereist, 60/min)
 //
 // Cache-strategie:
 //   Vercel Edge Cache-Control → CDN cached per endpoint+symbol (5 min)
@@ -52,10 +52,12 @@ async function fetchJSON(url, headers = {}) {
   return res.json();
 }
 
-async function fetchText(url, headers = {}) {
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status} voor ${url}`);
-  return res.text();
+// Yahoo Finance helper — stuurt de juiste User-Agent mee
+async function fetchYahoo(url) {
+  return fetchJSON(url, {
+    'User-Agent': 'Mozilla/5.0 (compatible; DeBrief/1.0)',
+    'Accept': 'application/json',
+  });
 }
 
 // ── Quotes ────────────────────────────────────────────────────────────────────
@@ -86,53 +88,38 @@ async function quoteXAUUSD() {
   });
 }
 
+// BEL20 via Yahoo Finance ^BFX — gratis, geen key, betrouwbaar serverside
 async function quoteBEL20() {
   return cached('q_bel20', async () => {
-    // Primair: Stooq.com JSON endpoint
-    try {
-      const data = await fetchJSON('https://stooq.com/q/l/?s=bel20&f=sd2t2ohlcv&h&e=json');
-      const q = data?.symbols?.[0];
-      if (q?.close) {
-        const price     = parseFloat(q.close);
-        const prevClose = parseFloat(q.open);
-        if (price && prevClose) {
-          return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
-        }
-      }
-    } catch (e) {
-      console.warn('[market] Stooq BEL20 primair mislukt:', e.message);
-    }
-
-    // Fallback: Yahoo Finance (^BFX = BEL20)
-    const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&range=5d';
-    const yData = await fetchJSON(yahooUrl, {
-      'User-Agent': 'Mozilla/5.0',
-      'Accept': 'application/json',
-    });
-    const result = yData?.chart?.result?.[0];
-    const meta   = result?.meta;
-    if (!meta?.regularMarketPrice) throw new Error('Geen BEL20 data (Yahoo fallback ook mislukt)');
+    const data = await fetchYahoo(
+      'https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&range=5d'
+    );
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta?.regularMarketPrice) throw new Error('Geen BEL20 data van Yahoo Finance');
     const price     = meta.regularMarketPrice;
     const prevClose = meta.chartPreviousClose || meta.previousClose || price;
     return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
   });
 }
 
+// US10Y via FRED — gebruik altijd sort_order=desc + limit zodat we nooit
+// afhankelijk zijn van een vaste startdatum. DGS10 is een business-day serie:
+// weekends en feestdagen ontbreken, dus observation_start kan 0 resultaten geven.
 async function quoteUS10Y() {
   return cached('q_us10y', async () => {
     if (!FRED_KEY) throw new Error('FRED_API_KEY niet ingesteld');
     const data = await fetchJSON(
-      `https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key=${FRED_KEY}&file_type=json&sort_order=desc&limit=5`
+      `https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key=${FRED_KEY}&file_type=json&sort_order=desc&limit=10`
     );
     const obs = data.observations?.filter(o => o.value !== '.');
     if (!obs?.length) throw new Error('Geen US10Y data');
     const price     = parseFloat(obs[0].value);
-    const prevClose = parseFloat(obs[1]?.value || obs[0].value);
+    const prevClose = parseFloat(obs[1]?.value ?? obs[0].value);
     return { c: price, pc: prevClose, dp: ((price - prevClose) / prevClose) * 100 };
   });
 }
 
-// Finnhub quote: werkt voor aandelen en ETFs (JPM, URTH, USO, AAPL, custom tickers)
+// Finnhub quote: werkt voor aandelen en ETFs (JPM, URTH, BNO, AAPL, ...)
 async function quoteFinnhub(symbol) {
   return cached(`q_fh_${symbol}`, async () => {
     if (!FINNHUB_KEY) throw new Error('FINNHUB_API_KEY niet ingesteld');
@@ -141,30 +128,30 @@ async function quoteFinnhub(symbol) {
     );
     // Finnhub geeft { c: current, pc: prev close, d: change, dp: change% }
     if (!data?.c) throw new Error(`Geen Finnhub data voor ${symbol}`);
-    return {
-      c:  data.c,
-      pc: data.pc,
-      dp: data.dp,
-    };
+    return { c: data.c, pc: data.pc, dp: data.dp };
   });
 }
 
 // ── PCT ───────────────────────────────────────────────────────────────────────
 
-function periodToStartDate(period) {
-  const daysMap = { '1month': 35, '6month': 185, '1year': 370 };
-  const days    = daysMap[period] || 35;
-  const d       = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().split('T')[0];
-}
-
 function periodToUnix(period) {
-  const daysMap = { '1month': 35, '6month': 185, '1year': 370 };
-  const days    = daysMap[period] || 35;
+  // Ruime marges zodat we altijd voldoende business days hebben
+  const daysMap = { '1day': 7, '1month': 40, '6month': 190, '1year': 375 };
+  const days    = daysMap[period] ?? 40;
   const from    = Math.floor((Date.now() - days * 86400000) / 1000);
   const to      = Math.floor(Date.now() / 1000);
   return { from, to };
+}
+
+function periodToStartDate(period) {
+  const { from } = periodToUnix(period);
+  return new Date(from * 1000).toISOString().split('T')[0];
+}
+
+// Hoeveel FRED-observaties ophalen per periode (ruim genoeg voor business days)
+function fredLimitForPeriod(period) {
+  const map = { '1day': 10, '1month': 35, '6month': 140, '1year': 270 };
+  return map[period] ?? 35;
 }
 
 async function pctEURUSD(period) {
@@ -181,7 +168,6 @@ async function pctEURUSD(period) {
 
 async function pctXAUUSD(period) {
   return cached(`pct_xauusd_${period}`, async () => {
-    // Goud via Finnhub candles (OANDA:XAU_USD)
     if (!FINNHUB_KEY) return { dp: null };
     const { from, to } = periodToUnix(period);
     const res = await fetchJSON(
@@ -191,30 +177,14 @@ async function pctXAUUSD(period) {
   });
 }
 
+// BEL20 pct via Yahoo Finance historische data
 async function pctBEL20(period) {
   return cached(`pct_bel20_${period}`, async () => {
-    // Primair: Stooq CSV
-    try {
-      const startDate = periodToStartDate(period);
-      const text = await fetchText(`https://stooq.com/q/d/l/?s=bel20&d1=${startDate.replace(/-/g,'')}&i=d`);
-      const lines = text.trim().split('\n').filter(l => l && !l.startsWith('Date'));
-      if (lines.length >= 2) {
-        const first = parseFloat(lines[0].split(',')[4]);
-        const last  = parseFloat(lines[lines.length - 1].split(',')[4]);
-        if (first && last) return { dp: ((last - first) / first) * 100 };
-      }
-    } catch (e) {
-      console.warn('[market] Stooq BEL20 pct mislukt:', e.message);
-    }
-
-    // Fallback: Yahoo Finance historische data (^BFX)
     const { from, to } = periodToUnix(period);
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&period1=${from}&period2=${to}`;
-    const yData = await fetchJSON(yahooUrl, {
-      'User-Agent': 'Mozilla/5.0',
-      'Accept': 'application/json',
-    });
-    const closes = yData?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(Boolean);
+    const data = await fetchYahoo(
+      `https://query1.finance.yahoo.com/v8/finance/chart/%5EBFX?interval=1d&period1=${from}&period2=${to}`
+    );
+    const closes = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(v => v != null);
     if (!closes || closes.length < 2) return { dp: null };
     const first = closes[0];
     const last  = closes[closes.length - 1];
@@ -222,14 +192,17 @@ async function pctBEL20(period) {
   });
 }
 
+// US10Y pct — gebruik limit+desc en draai de array om zodat eerste vs laatste
+// altijd correct is, ongeacht weekends of feestdagen aan de randen.
 async function pctUS10Y(period) {
   return cached(`pct_us10y_${period}`, async () => {
     if (!FRED_KEY) return { dp: null };
-    const startDate = periodToStartDate(period);
+    const limit = fredLimitForPeriod(period);
     const data = await fetchJSON(
-      `https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key=${FRED_KEY}&file_type=json&observation_start=${startDate}&sort_order=asc`
+      `https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key=${FRED_KEY}&file_type=json&sort_order=desc&limit=${limit}`
     );
-    const obs = (data.observations || []).filter(o => o.value !== '.');
+    // desc → nieuwste eerst; omdraaien voor oudste-eerste vergelijking
+    const obs = (data.observations || []).filter(o => o.value !== '.').reverse();
     if (obs.length < 2) return { dp: null };
     const first = parseFloat(obs[0].value);
     const last  = parseFloat(obs[obs.length - 1].value);
@@ -250,7 +223,6 @@ async function pctFinnhub(symbol, period) {
 }
 
 function pctFromCandles(res) {
-  // Finnhub candle response: { s: 'ok', c: [...closes], t: [...timestamps] }
   if (res?.s !== 'ok' || !res.c?.length || res.c.length < 2) return { dp: null };
   const first = res.c[0];
   const last  = res.c[res.c.length - 1];
@@ -264,7 +236,6 @@ async function searchSymbols(q) {
     const data = await fetchJSON(
       `https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${FINNHUB_KEY}`
     );
-    // Finnhub geeft { count, result: [{ description, displaySymbol, symbol, type }] }
     const hits = (data?.result || []).slice(0, 8).map(m => ({
       symbol:    m.displaySymbol || m.symbol,
       full_name: m.symbol,
@@ -283,11 +254,11 @@ export default async function handler(req, res) {
 
   const { endpoint, symbol, period } = req.query;
 
-  // Interne symboolmapping: preset src-waarden → Finnhub symbolen
+  // Interne symboolmapping — BNO (Brent) vervangt USO (WTI) voor Europese olieprijzen
   const FINNHUB_MAP = {
     JPM:  'JPM',
     URTH: 'URTH',
-    USO:  'USO',
+    BNO:  'BNO',
     AAPL: 'AAPL',
   };
 
@@ -296,10 +267,10 @@ export default async function handler(req, res) {
 
     if (endpoint === 'quote') {
       switch (symbol) {
-        case 'EURUSD': data = await quoteEURUSD();  break;
-        case 'XAUUSD': data = await quoteXAUUSD();  break;
-        case 'BEL20':  data = await quoteBEL20();   break;
-        case 'US10Y':  data = await quoteUS10Y();   break;
+        case 'EURUSD': data = await quoteEURUSD(); break;
+        case 'XAUUSD': data = await quoteXAUUSD(); break;
+        case 'BEL20':  data = await quoteBEL20();  break;
+        case 'US10Y':  data = await quoteUS10Y();  break;
         default: {
           const fhSym = FINNHUB_MAP[symbol] || symbol;
           data = await quoteFinnhub(fhSym);
@@ -309,10 +280,10 @@ export default async function handler(req, res) {
     } else if (endpoint === 'pct') {
       const p = period || '1month';
       switch (symbol) {
-        case 'EURUSD': data = await pctEURUSD(p);   break;
-        case 'XAUUSD': data = await pctXAUUSD(p);   break;
-        case 'BEL20':  data = await pctBEL20(p);    break;
-        case 'US10Y':  data = await pctUS10Y(p);    break;
+        case 'EURUSD': data = await pctEURUSD(p);  break;
+        case 'XAUUSD': data = await pctXAUUSD(p);  break;
+        case 'BEL20':  data = await pctBEL20(p);   break;
+        case 'US10Y':  data = await pctUS10Y(p);   break;
         default: {
           const fhSym = FINNHUB_MAP[symbol] || symbol;
           data = await pctFinnhub(fhSym, p);
