@@ -72,20 +72,19 @@ async function generateContent(items, groqKey) {
 
   const prompt = `Je bent een Vlaamse radionieuwsredacteur. Vandaag is het ${dagNaam} ${datumStr}.
 
-Je krijgt nieuwsartikels. Geef je antwoord in twee delen:
-
-DEEL 1 — Verhalen (JSON tussen <stories>…</stories>):
-Kies de 5 meest nieuwswaardige artikels. Prioriteit: politiek en economie gaan altijd vóór regionaal nieuws of entertainment. Sport mag NIET worden opgenomen.
-Geef voor elk:
-  rank (1–5), title (correct Nederlands, vertaal indien nodig), summary (max 25 woorden, kernboodschap), source (kopieer "s"-veld)
+Je krijgt nieuwsartikels. Geef je antwoord in exact dit formaat, zonder extra titels, labels of uitleg buiten het formaat:
 
 <stories>
 [{"rank":1,"title":"…","summary":"…","source":"…"},…]
 </stories>
+Goedemorgen, hier is uw DeStem briefing van ${dagNaam} ${datumStr}. [verder radioscript]
 
-DEEL 2 — Radioscript (direct na </stories>, geen extra uitleg):
+Regels voor de <stories>:
+Kies de 5 meest nieuwswaardige artikels. Prioriteit: politiek en economie gaan altijd vóór regionaal nieuws of entertainment. Sport mag NIET worden opgenomen.
+Geef voor elk: rank (1–5), title (correct Nederlands, vertaal indien nodig), summary (max 25 woorden, kernboodschap), source (kopieer "s"-veld)
+
+Regels voor het radioscript (onmiddellijk na </stories>, geen enkele extra header of label):
 Vloeiend journalistiek script in het Nederlands, ±450 woorden (~3 min).
-Begin: "Goedemorgen, hier is uw DeStem briefing van ${dagNaam} ${datumStr}."
 Gebruik overgangszinnen. Geen koppen of opsommingen. Sluit af met een korte afsluiting.
 
 Artikels:
