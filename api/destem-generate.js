@@ -72,20 +72,28 @@ async function generateContent(items, groqKey) {
 
   const prompt = `Je bent een Vlaamse radionieuwsredacteur. Vandaag is het ${dagNaam} ${datumStr}.
 
-Je krijgt nieuwsartikels. Geef je antwoord in exact dit formaat, zonder extra titels, labels of uitleg buiten het formaat:
+Je krijgt nieuwsartikels. Kies exact 5 artikels volgens deze vaste verdeling:
+- rank 1: ECONOMIE (internationaal) — marktnieuws, handelsbeleid, bedrijven, centrale banken, energie
+- rank 2: ECONOMIE (internationaal) — zelfde categorie, tweede verhaal
+- rank 3: POLITIEK (internationaal) — geopolitiek, diplomatie, oorlog, verkiezingen
+- rank 4: POLITIEK (internationaal) — zelfde categorie, tweede verhaal
+- rank 5: BINNENLANDS (België) — Belgisch nieuws, politiek of economisch
+
+Verboden: sport, entertainment, lifestyle, dieren, natuur tenzij er economische of politieke impact is.
+Als een categorie onvoldoende artikels heeft, kies dan het best beschikbare alternatief binnen politiek/economie.
+
+Geef je antwoord in exact dit formaat, zonder extra titels, labels of uitleg:
 
 <stories>
-[{"rank":1,"title":"…","summary":"…","source":"…"},…]
+[{"rank":1,"category":"economie","title":"…","summary":"…","source":"…"},{"rank":2,"category":"economie","title":"…","summary":"…","source":"…"},{"rank":3,"category":"politiek","title":"…","summary":"…","source":"…"},{"rank":4,"category":"politiek","title":"…","summary":"…","source":"…"},{"rank":5,"category":"binnenlands","title":"…","summary":"…","source":"…"}]
 </stories>
 Goedemorgen, hier is uw DeStem briefing van ${dagNaam} ${datumStr}. [verder radioscript]
 
-Regels voor de <stories>:
-Kies de 5 meest nieuwswaardige artikels. Prioriteit: politiek en economie gaan altijd vóór regionaal nieuws of entertainment. Sport mag NIET worden opgenomen.
-Geef voor elk: rank (1–5), title (correct Nederlands, vertaal indien nodig), summary (max 25 woorden, kernboodschap), source (kopieer "s"-veld)
+Regels voor elk verhaal: title in correct Nederlands (vertaal indien nodig), summary max 20 woorden kernboodschap, source kopieer het "s"-veld exact.
 
 Regels voor het radioscript (onmiddellijk na </stories>, geen enkele extra header of label):
 Vloeiend journalistiek script in het Nederlands, ±450 woorden (~3 min).
-Gebruik overgangszinnen. Geen koppen of opsommingen. Sluit af met een korte afsluiting.
+Bespreek de verhalen in volgorde van rank. Gebruik overgangszinnen. Geen koppen of opsommingen. Sluit af met een korte afsluiting.
 
 Artikels:
 ${artikelsJson}`;
