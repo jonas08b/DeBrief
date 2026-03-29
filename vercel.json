@@ -7,5 +7,10 @@
       "path": "/api/destem-generate",
       "schedule": "0 5 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/destem-generate.js": {
+      "maxDuration": 120
+    }
+  }
 }
