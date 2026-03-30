@@ -409,6 +409,15 @@
     font-size: 11px; font-weight: 500; letter-spacing: .06em;
     text-transform: uppercase; color: var(--ink-faint);
   }
+  .destem-generate-btn {
+    background: none; border: 1.5px solid var(--border); border-radius: 50%;
+    width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; color: var(--ink-muted); transition: color .2s, border-color .2s;
+    margin-left: 6px;
+  }
+  .destem-generate-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .destem-generate-btn.spinning { animation: destem-spin 1s linear infinite; }
+  @keyframes destem-spin { to { transform: rotate(360deg); } }
   .destem-close {
     width: 30px; height: 30px; border-radius: 50%;
     background: var(--border); border: none; cursor: pointer;
@@ -2229,6 +2238,7 @@ document.getElementById('catTabs').addEventListener('click', e => {
       <div class="destem-date-label" id="destemDateLabel"></div>
     </div>
     <button class="destem-close" id="destemClose" aria-label="Sluiten">&#x2715;</button>
+    <button class="destem-generate-btn" id="destemGenerateBtn" title="Genereer nieuwe briefing">&#x21bb;</button>
   </div>
 
   <!-- Audiospeler -->
@@ -2347,10 +2357,21 @@ document.getElementById('catTabs').addEventListener('click', e => {
     btn.classList.remove('playing');
   }
 
+  const generateBtn = document.getElementById('destemGenerateBtn');
+
   btn.addEventListener('click', openSheet);
   overlay.addEventListener('click', closeSheet);
   closeBtn.addEventListener('click', closeSheet);
   sheet.addEventListener('click', e => e.stopPropagation());
+
+  generateBtn.addEventListener('click', () => {
+    generateBtn.classList.add('spinning');
+    generateBriefing(activeVoice);
+    // Stop animatie zodra loading klaar is (poll)
+    const stopSpin = setInterval(() => {
+      if (!loading) { generateBtn.classList.remove('spinning'); clearInterval(stopSpin); }
+    }, 500);
+  });
 
   // Swipe-down sluiten
   let _swipeY = 0;
@@ -2397,64 +2418,59 @@ document.getElementById('catTabs').addEventListener('click', e => {
 
   renderVoiceChips();
 
-  // ── Laad briefing ─────────────────────────────────────────────────────────
+  // ── Pas metadata toe op de UI (gedeeld door loadBriefing en generateBriefing)
+  function applyMeta(data) {
+    currentMeta = data;
+
+    const d = new Date(data.date);
+    dateLabel.textContent = d.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' });
+
+    if (Array.isArray(data.stories) && data.stories.length) {
+      renderStories(data.stories);
+    } else {
+      storiesList.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);padding:8px 0">Geen verhalenlijst beschikbaar.</p>';
+    }
+
+    if (data.script) scriptDiv.textContent = data.script;
+
+    expandRow.classList.add('visible');
+    storiesDiv.classList.add('visible');
+    scriptDiv.classList.remove('visible');
+
+    audio = new Audio(data.audioUrl);
+    audio.preload = 'auto';
+
+    audio.addEventListener('loadedmetadata', () => {
+      timeTot.textContent        = fmt(audio.duration);
+      statusDiv.style.display    = 'none';
+      controls.style.display     = 'flex';
+      progressWrap.style.display = 'block';
+      timesEl.style.display      = 'flex';
+      loaded  = true;
+      loading = false;
+    });
+
+    audio.addEventListener('ended', () => {
+      playBtn.classList.remove('playing');
+      btn.classList.remove('playing');
+      cancelAnimationFrame(rafId);
+    });
+
+    audio.addEventListener('error', () => {
+      setStatus('Audio kon niet worden afgespeeld.', false);
+      loading = false;
+    });
+  }
+
+  // ── Laad bestaande briefing van blob ──────────────────────────────────────
   async function loadBriefing() {
     loading = true;
     setStatus('Briefing laden…', true);
-
     try {
       const res  = await fetch('/api/destem', { signal: AbortSignal.timeout(12000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Onbekende fout');
-      currentMeta = data;
-
-      // Datum
-      const d = new Date(data.date);
-      dateLabel.textContent = d.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' });
-
-      // Verhalen
-      if (Array.isArray(data.stories) && data.stories.length) {
-        renderStories(data.stories);
-      } else {
-        storiesList.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);padding:8px 0">Geen verhalenlijst beschikbaar.</p>';
-      }
-
-      // Script
-      if (data.script) {
-        scriptDiv.textContent = data.script;
-      }
-
-      // Toon uitklap-rij
-      expandRow.classList.add('visible');
-      // Standaard: verhalen zichtbaar
-      storiesDiv.classList.add('visible');
-      scriptDiv.classList.remove('visible');
-
-      // Audio laden
-      audio = new Audio(data.audioUrl);
-      audio.preload = 'auto';
-
-      audio.addEventListener('loadedmetadata', () => {
-        timeTot.textContent        = fmt(audio.duration);
-        statusDiv.style.display    = 'none';
-        controls.style.display     = 'flex';
-        progressWrap.style.display = 'block';
-        timesEl.style.display      = 'flex';
-        loaded  = true;
-        loading = false;
-      });
-
-      audio.addEventListener('ended', () => {
-        playBtn.classList.remove('playing');
-        btn.classList.remove('playing');
-        cancelAnimationFrame(rafId);
-      });
-
-      audio.addEventListener('error', () => {
-        setStatus('Audio kon niet worden afgespeeld.', false);
-        loading = false;
-      });
-
+      applyMeta(data);
     } catch (err) {
       const isNotReady = err.message.includes('404') || err.message.includes('Nog geen') || err.message.includes('not found');
       setStatus(
@@ -2465,6 +2481,59 @@ document.getElementById('catTabs').addEventListener('click', e => {
       );
       loading = false;
     }
+  }
+
+  // ── Genereer nieuwe briefing via SSE met live voortgang ───────────────────
+  function generateBriefing(voiceParam) {
+    if (loading) return;
+    loading = true;
+    loaded  = false;
+    if (audio) { audio.pause(); audio = null; }
+    playBtn.classList.remove('playing');
+    btn.classList.remove('playing');
+    cancelAnimationFrame(rafId);
+
+    const url = '/api/destem-generate' + (voiceParam ? '?voice=' + voiceParam : '');
+    const es  = new EventSource(url);
+
+    es.addEventListener('status', e => {
+      const d = JSON.parse(e.data);
+      const stepLabel = d.total ? ' (' + d.step + '/' + d.total + ')' : '';
+      setStatus(d.message + stepLabel, true);
+    });
+
+    // Verhalen arriveren al vóór de audio klaar is
+    es.addEventListener('stories', e => {
+      const d = JSON.parse(e.data);
+      if (Array.isArray(d.stories) && d.stories.length) {
+        renderStories(d.stories);
+        expandRow.classList.add('visible');
+        storiesDiv.classList.add('visible');
+        scriptDiv.classList.remove('visible');
+      }
+    });
+
+    es.addEventListener('done', e => {
+      es.close();
+      const data = JSON.parse(e.data);
+      applyMeta(data);
+    });
+
+    es.addEventListener('error', e => {
+      es.close();
+      let msg = 'Generatie mislukt';
+      try { msg = JSON.parse(e.data).message || msg; } catch {}
+      setStatus('⚠ ' + msg, false);
+      loading = false;
+    });
+
+    es.onerror = () => {
+      if (!loaded) {
+        es.close();
+        setStatus('Verbinding verbroken. Probeer opnieuw.', false);
+        loading = false;
+      }
+    };
   }
 
   // ── Verhalen renderen ─────────────────────────────────────────────────────
