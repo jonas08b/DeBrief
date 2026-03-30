@@ -548,6 +548,27 @@
     color: var(--ink); border-bottom-color: var(--accent);
   }
 
+  /* Stemkeuze */
+  .destem-voice-row {
+    display: none; align-items: center; gap: 8px;
+    padding: 12px 20px 0; flex-wrap: wrap;
+  }
+  .destem-voice-row.visible { display: flex; }
+  .destem-voice-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .destem-voice-chip {
+    font-size: 11px; font-weight: 600; padding: 4px 11px;
+    border-radius: 20px; border: 1.5px solid var(--border);
+    background: none; color: var(--ink-muted); cursor: pointer;
+    font-family: var(--font-sans); transition: all .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .destem-voice-chip.active {
+    background: var(--ink); border-color: var(--ink); color: var(--bg);
+  }
 
   @media (prefers-color-scheme: dark) {
     .destem-play-btn { background: var(--ink); }
@@ -1967,7 +1988,9 @@ function showListPanel() {
 
 async function openDetail(ticker) {
   mktCurrentTicker = ticker;
-  mktCurrentPeriod = '1day';
+  // US10Y is enkel zinvol op langere termijn — forceer 1J en verberg andere knoppen
+  const forceYear = ticker.src === 'US10Y';
+  mktCurrentPeriod = forceYear ? '1year' : '1day';
   showDetailPanel();
   document.getElementById('marktDetailName').textContent   = ticker.name;
   document.getElementById('marktDetailSymbol').textContent = ticker.symbol;
@@ -1975,8 +1998,15 @@ async function openDetail(ticker) {
   document.getElementById('marktDetailChange').textContent = '';
   document.getElementById('marktDetailChange').className   = 'markt-detail-change neu';
   document.getElementById('marktStatsRow').innerHTML       = '';
-  document.querySelectorAll('.markt-period').forEach(b =>
-    b.classList.toggle('active', b.dataset.period === '1day'));
+  document.querySelectorAll('.markt-period').forEach(b => {
+    if (forceYear) {
+      b.classList.toggle('active', b.dataset.period === '1year');
+      b.style.display = b.dataset.period === '1year' ? '' : 'none';
+    } else {
+      b.classList.toggle('active', b.dataset.period === '1day');
+      b.style.display = '';
+    }
+  });
   document.getElementById('marktCustomDates').style.display = 'none';
   updateWatchlistBtn();
   loadQuote();
@@ -2242,7 +2272,11 @@ document.getElementById('catTabs').addEventListener('click', e => {
       <button class="destem-expand-tab active" data-panel="stories">5 verhalen</button>
       <button class="destem-expand-tab" data-panel="script">Script</button>
     </div>
-
+    <!-- Stemkeuze inline rechts -->
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="destem-voice-label">Stem</span>
+      <div id="destemVoiceChips" style="display:flex;gap:5px"></div>
+    </div>
   </div>
 
   <!-- Verhalen-lijst -->
@@ -2282,6 +2316,7 @@ document.getElementById('catTabs').addEventListener('click', e => {
   const storiesDiv    = document.getElementById('destemStories');
   const storiesList   = document.getElementById('destemStoriesList');
   const expandRow     = document.getElementById('destemExpandRow');
+  const voiceChips    = document.getElementById('destemVoiceChips');
   const dateLabel     = document.getElementById('destemDateLabel');
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -2290,8 +2325,12 @@ document.getElementById('catTabs').addEventListener('click', e => {
   let loading      = false;
   let rafId        = null;
   let activePanel  = 'stories'; // 'stories' | 'script'
+  let activeVoice  = localStorage.getItem('destem_voice') || 'Aoede';
   let currentMeta  = null;
 
+  const VOICES = {
+    Aoede: 'Aoede', Charon: 'Charon', Fenrir: 'Fenrir', Kore: 'Kore', Puck: 'Puck',
+  };
 
   // ── Open / Sluit ──────────────────────────────────────────────────────────
   function openSheet() {
@@ -2332,6 +2371,31 @@ document.getElementById('catTabs').addEventListener('click', e => {
   });
 
   // ── Stemkeuze ─────────────────────────────────────────────────────────────
+  function renderVoiceChips() {
+    voiceChips.innerHTML = Object.keys(VOICES).map(v =>
+      `<button class="destem-voice-chip${v === activeVoice ? ' active' : ''}" data-voice="${v}">${v}</button>`
+    ).join('');
+  }
+
+  voiceChips.addEventListener('click', e => {
+    const chip = e.target.closest('[data-voice]');
+    if (!chip) return;
+    activeVoice = chip.dataset.voice;
+    localStorage.setItem('destem_voice', activeVoice);
+    renderVoiceChips();
+    // Als er al een briefing geladen is met een andere stem, opnieuw laden
+    if (currentMeta && currentMeta.voice !== activeVoice) {
+      loaded  = false;
+      loading = false;
+      if (audio) { audio.pause(); audio = null; }
+      playBtn.classList.remove('playing');
+      btn.classList.remove('playing');
+      cancelAnimationFrame(rafId);
+      loadBriefing();
+    }
+  });
+
+  renderVoiceChips();
 
   // ── Laad briefing ─────────────────────────────────────────────────────────
   async function loadBriefing() {
