@@ -65,6 +65,10 @@ const MAX_TOKENS = 1200;   // 950 was te krap voor 450 woorden + JSON
 const TIMEOUT_MS = 45_000;
 const MAX_ITEMS  = 80;
 
+const VOICES = {
+  Aoede: 'Aoede', Charon: 'Charon', Fenrir: 'Fenrir', Kore: 'Kore', Puck: 'Puck',
+};
+
 // ─── Foutklasse ───────────────────────────────────────────────────────────────
 class GroqError extends Error {
   constructor(statusCode, message) {
