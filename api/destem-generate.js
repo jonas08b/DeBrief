@@ -58,25 +58,44 @@ async function fetchItems({ url, label, tag }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Stap 2 — Groq: verhalen + script in één call
 // ─────────────────────────────────────────────────────────────────────────────
-async function generateContent(items, groqKey) {
-  const now      = new Date();
-  const dagNaam  = now.toLocaleDateString('nl-BE', { weekday: 'long' });
-  const datumStr = now.toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+// ─── Constanten ──────────────────────────────────────────────────────────────
+const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL      = 'llama-3.3-70b-versatile';
+const MAX_TOKENS = 1200;   // 950 was te krap voor 450 woorden + JSON
+const TIMEOUT_MS = 45_000;
+const MAX_ITEMS  = 80;
 
+// ─── Foutklasse ───────────────────────────────────────────────────────────────
+class GroqError extends Error {
+  constructor(statusCode, message) {
+    super(`Groq ${statusCode}: ${message}`);
+    this.statusCode = statusCode;
+  }
+}
+
+// ─── Promptopbouw ─────────────────────────────────────────────────────────────
+function buildPrompt(items, dagNaam, datumStr) {
   const artikelsJson = JSON.stringify(
-    items.slice(0, 80).map((a, i) => ({ i, t: a.title, d: a.desc, s: a.source, tag: a.tag }))
+    items.slice(0, MAX_ITEMS).map((a, i) => ({
+      i,
+      t:   a.title,
+      d:   a.desc,
+      s:   a.source,
+      tag: a.tag,
+    }))
   );
 
-  const prompt = `Je bent een Vlaamse radionieuwsredacteur. Vandaag is het ${dagNaam} ${datumStr}.
+  return `Je bent een Vlaamse radionieuwsredacteur. Vandaag is het ${dagNaam} ${datumStr}.
 
-Je krijgt nieuwsartikels uit verschillende bronnen. Elk artikel heeft een "tag" (economie / politiek / binnenlands / internationaal) als hint.
+Je krijgt nieuwsartikels uit verschillende bronnen. Elk artikel heeft een "tag" \
+(economie / politiek / binnenlands / internationaal) als hint.
 
 Kies exact 5 artikels volgens deze vaste verdeling:
-- rank 1 & 2: ECONOMIE (internationaal) — marktnieuws, handelsbeleid, bedrijven, centrale banken, energie, sancties
-- rank 3 & 4: POLITIEK (internationaal) — geopolitiek, diplomatie, oorlog, verkiezingen, EU-beleid
-- rank 5: BINNENLANDS (België) — Belgisch nieuws, politiek of economisch
+- rank 1 & 2 : ECONOMIE (internationaal) — marktnieuws, handelsbeleid, bedrijven, centrale banken, energie, sancties
+- rank 3 & 4 : POLITIEK (internationaal) — geopolitiek, diplomatie, oorlog, verkiezingen, EU-beleid
+- rank 5     : BINNENLANDS (België) — Belgisch nieuws, politiek of economisch
 
-Strikt verboden: sport, entertainment, lifestyle, dieren, natuur tenzij directe economische of politieke impact.
+Strikt verboden: sport, entertainment, lifestyle, dieren, natuur — tenzij directe economische of politieke impact.
 Als een categorie onvoldoende artikels heeft, kies het best beschikbare alternatief binnen politiek/economie.
 
 VERTALING: Alle titels en samenvattingen MOETEN in correct, vloeiend Nederlands zijn — vertaal altijd vanuit het Engels of Frans.
@@ -85,51 +104,79 @@ Geef je antwoord in exact dit formaat, zonder extra titels, labels of uitleg:
 
 <stories>
 [{"rank":1,"category":"economie","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":2,"category":"economie","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":3,"category":"politiek","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":4,"category":"politiek","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":5,"category":"binnenlands","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"}]
-</stories>
-Goedemorgen, hier is uw DeStem briefing van ${dagNaam} ${datumStr}. [verder radioscript in het Nederlands]
+</stories>Goedeavond, hier is uw DeStem avondbriefing van ${dagNaam} ${datumStr}. [verder radioscript in het Nederlands]
 
-Regels voor het radioscript (onmiddellijk na </stories>, geen header of label):
+Regels voor het radioscript (begint onmiddellijk na </stories>, geen witregel, geen header of label):
 Vloeiend journalistiek Nederlands, ±450 woorden (~3 min). Bespreek verhalen in volgorde van rank.
 Gebruik overgangszinnen. Geen koppen of opsommingen. Sluit af met een korte afsluiting.
 
 Artikels (formaat: i=index, t=titel, d=beschrijving, s=bronlabel, tag=categoriehint):
 ${artikelsJson}`;
+}
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
+// ─── Responsparsing ───────────────────────────────────────────────────────────
+function parseResponse(raw) {
+  // Extraheer <stories>…</stories>
+  const storiesMatch = raw.match(/<stories>([\s\S]*?)<\/stories>/);
+  let stories = [];
+
+  if (storiesMatch) {
+    const jsonText = storiesMatch[1].trim();
+    try {
+      stories = JSON.parse(jsonText);
+    } catch {
+      // Fallback: probeer array-blok te redden via eerste '[' en laatste ']'
+      const start = jsonText.indexOf('[');
+      const end   = jsonText.lastIndexOf(']');
+      if (start !== -1 && end !== -1) {
+        try { stories = JSON.parse(jsonText.slice(start, end + 1)); } catch { /* blijft [] */ }
+      }
+    }
+  }
+
+  if (!Array.isArray(stories) || stories.length !== 5) {
+    throw new Error(`Verwacht 5 stories, kreeg ${Array.isArray(stories) ? stories.length : 'geen geldige array'}`);
+  }
+
+  // Script = alles na </stories>
+  const script = raw.replace(/<stories>[\s\S]*?<\/stories>/, '').trim();
+  if (!script) throw new Error('Groq gaf geen radioscript terug');
+
+  return { stories, script };
+}
+
+// ─── Hoofdfunctie ─────────────────────────────────────────────────────────────
+async function generateContent(items, groqKey) {
+  const now      = new Date();
+  const dagNaam  = now.toLocaleDateString('nl-BE', { weekday: 'long' });
+  const datumStr = now.toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const prompt = buildPrompt(items, dagNaam, datumStr);
+
+  const res = await fetch(GROQ_URL, {
+    method:  'POST',
     headers: {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${groqKey}`,
     },
     body: JSON.stringify({
-      model:       'llama-3.3-70b-versatile',
+      model:       MODEL,
       temperature: 0.35,
-      max_tokens:  950,
+      max_tokens:  MAX_TOKENS,
       messages:    [{ role: 'user', content: prompt }],
     }),
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(`Groq ${res.status}: ${err?.error?.message || 'onbekende fout'}`);
+    throw new GroqError(res.status, err?.error?.message ?? 'onbekende fout');
   }
 
   const data = await res.json();
-  const raw  = data.choices?.[0]?.message?.content?.trim() || '';
+  const raw  = data.choices?.[0]?.message?.content?.trim() ?? '';
 
-  // Extraheer stories
-  let stories = [];
-  const m = raw.match(/<stories>([\s\S]*?)<\/stories>/);
-  if (m) {
-    try { stories = JSON.parse(m[1].trim()); } catch { stories = []; }
-  }
-
-  // Script = alles na </stories>
-  const script = raw.replace(/<stories>[\s\S]*?<\/stories>/, '').trim();
-  if (!script) throw new Error('Groq gaf geen script terug');
-
-  return { stories, script };
+  return parseResponse(raw);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
