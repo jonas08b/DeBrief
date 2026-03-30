@@ -22,25 +22,21 @@ import { put } from '@vercel/blob';
 const RSS2JSON_BASE =
   'https://api.rss2json.com/v1/api.json?api_key=goxrkjvrqv2dqaaj0mybmnl0vyjxhqccxlh906cv&count=30&rss_url=';
 
-const FEED_URLS = [
-  'https://www.vrt.be/vrtnws/nl.rss.articles.xml',
-  'https://www.hln.be/home/rss.xml',
-  'https://feeds.content.dowjones.io/public/rss/RSSWorldNews',
-  'https://www.euronews.com/rss?format=mrss&level=theme&name=news',
+// Elke feed heeft een label dat meegestuurd wordt naar het model
+// zodat het weet van welke bron en categorie het artikel komt.
+const FEEDS = [
+  { url: 'https://www.vrt.be/vrtnws/nl.rss.articles.xml',              label: 'vrt',              tag: 'binnenlands' },
+  { url: 'https://www.hln.be/home/rss.xml',                            label: 'hln',              tag: 'binnenlands' },
+  { url: 'https://feeds.content.dowjones.io/public/rss/RSSWorldNews',  label: 'wsj',              tag: 'economie'    },
+  { url: 'https://www.euronews.com/rss?format=mrss&level=theme&name=news', label: 'euronews',     tag: 'internationaal' },
+  { url: 'https://www.politico.eu/section/politics/feed/',             label: 'politico',         tag: 'politiek'    },
+  { url: 'https://www.politico.eu/section/opinion/feed/',              label: 'politico-opinion', tag: 'politiek'    },
 ];
-
-export const VOICES = {
-  Aoede:  'Aoede',
-  Charon: 'Charon',
-  Fenrir: 'Fenrir',
-  Kore:   'Kore',
-  Puck:   'Puck',
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stap 1 — RSS ophalen
 // ─────────────────────────────────────────────────────────────────────────────
-async function fetchItems(url) {
+async function fetchItems({ url, label, tag }) {
   try {
     const res = await fetch(RSS2JSON_BASE + encodeURIComponent(url), {
       signal: AbortSignal.timeout(10000),
@@ -51,7 +47,8 @@ async function fetchItems(url) {
     return data.items.map((i) => ({
       title:  (i.title || '').trim(),
       desc:   (i.description || i.content || '').replace(/<[^>]*>/g, '').trim().slice(0, 300),
-      source: new URL(url).hostname.replace('www.', '').split('.')[0],
+      source: label,
+      tag,
     }));
   } catch {
     return [];
@@ -67,35 +64,35 @@ async function generateContent(items, groqKey) {
   const datumStr = now.toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const artikelsJson = JSON.stringify(
-    items.slice(0, 60).map((a, i) => ({ i, t: a.title, d: a.desc, s: a.source }))
+    items.slice(0, 80).map((a, i) => ({ i, t: a.title, d: a.desc, s: a.source, tag: a.tag }))
   );
 
   const prompt = `Je bent een Vlaamse radionieuwsredacteur. Vandaag is het ${dagNaam} ${datumStr}.
 
-Je krijgt nieuwsartikels. Kies exact 5 artikels volgens deze vaste verdeling:
-- rank 1: ECONOMIE (internationaal) — marktnieuws, handelsbeleid, bedrijven, centrale banken, energie
-- rank 2: ECONOMIE (internationaal) — zelfde categorie, tweede verhaal
-- rank 3: POLITIEK (internationaal) — geopolitiek, diplomatie, oorlog, verkiezingen
-- rank 4: POLITIEK (internationaal) — zelfde categorie, tweede verhaal
+Je krijgt nieuwsartikels uit verschillende bronnen. Elk artikel heeft een "tag" (economie / politiek / binnenlands / internationaal) als hint.
+
+Kies exact 5 artikels volgens deze vaste verdeling:
+- rank 1 & 2: ECONOMIE (internationaal) — marktnieuws, handelsbeleid, bedrijven, centrale banken, energie, sancties
+- rank 3 & 4: POLITIEK (internationaal) — geopolitiek, diplomatie, oorlog, verkiezingen, EU-beleid
 - rank 5: BINNENLANDS (België) — Belgisch nieuws, politiek of economisch
 
-Verboden: sport, entertainment, lifestyle, dieren, natuur tenzij er economische of politieke impact is.
-Als een categorie onvoldoende artikels heeft, kies dan het best beschikbare alternatief binnen politiek/economie.
+Strikt verboden: sport, entertainment, lifestyle, dieren, natuur tenzij directe economische of politieke impact.
+Als een categorie onvoldoende artikels heeft, kies het best beschikbare alternatief binnen politiek/economie.
+
+VERTALING: Alle titels en samenvattingen MOETEN in correct, vloeiend Nederlands zijn — vertaal altijd vanuit het Engels of Frans.
 
 Geef je antwoord in exact dit formaat, zonder extra titels, labels of uitleg:
 
 <stories>
-[{"rank":1,"category":"economie","title":"…","summary":"…","source":"…"},{"rank":2,"category":"economie","title":"…","summary":"…","source":"…"},{"rank":3,"category":"politiek","title":"…","summary":"…","source":"…"},{"rank":4,"category":"politiek","title":"…","summary":"…","source":"…"},{"rank":5,"category":"binnenlands","title":"…","summary":"…","source":"…"}]
+[{"rank":1,"category":"economie","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":2,"category":"economie","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":3,"category":"politiek","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":4,"category":"politiek","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"},{"rank":5,"category":"binnenlands","title":"[NL]","summary":"[NL, max 20 woorden]","source":"[kopieer s-veld]"}]
 </stories>
-Goedemorgen, hier is uw DeStem briefing van ${dagNaam} ${datumStr}. [verder radioscript]
+Goedemorgen, hier is uw DeStem briefing van ${dagNaam} ${datumStr}. [verder radioscript in het Nederlands]
 
-Regels voor elk verhaal: title in correct Nederlands (vertaal indien nodig), summary max 20 woorden kernboodschap, source kopieer het "s"-veld exact.
+Regels voor het radioscript (onmiddellijk na </stories>, geen header of label):
+Vloeiend journalistiek Nederlands, ±450 woorden (~3 min). Bespreek verhalen in volgorde van rank.
+Gebruik overgangszinnen. Geen koppen of opsommingen. Sluit af met een korte afsluiting.
 
-Regels voor het radioscript (onmiddellijk na </stories>, geen enkele extra header of label):
-Vloeiend journalistiek script in het Nederlands, ±450 woorden (~3 min).
-Bespreek de verhalen in volgorde van rank. Gebruik overgangszinnen. Geen koppen of opsommingen. Sluit af met een korte afsluiting.
-
-Artikels:
+Artikels (formaat: i=index, t=titel, d=beschrijving, s=bronlabel, tag=categoriehint):
 ${artikelsJson}`;
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -249,7 +246,7 @@ export default async function handler(req, res) {
   const voice = VOICES[req.query?.voice] ? req.query.voice : 'Aoede';
 
   try {
-    const allItems = (await Promise.all(FEED_URLS.map(fetchItems))).flat();
+    const allItems = (await Promise.all(FEEDS.map(fetchItems))).flat();
     if (allItems.length < 5) return res.status(502).json({ error: 'Te weinig artikels' });
 
     const { stories, script } = await generateContent(allItems, GROQ_API_KEY);
