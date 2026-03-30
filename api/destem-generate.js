@@ -65,6 +65,16 @@ const MAX_TOKENS = 1200;   // 950 was te krap voor 450 woorden + JSON
 const TIMEOUT_MS = 45_000;
 const MAX_ITEMS  = 80;
 
+// Beschikbare Gemini TTS stemmen — uitbreidbaar
+// Documentatie: https://ai.google.dev/gemini-api/docs/speech-generation
+const VOICES = {
+  Aoede:   'Warm, journalistiek (standaard)',
+  Kore:    'Helder, formeel',
+  Charon:  'Diep, gezaghebbend',
+  Fenrir:  'Krachtig, energiek',
+  Puck:    'Vriendelijk, toegankelijk',
+};
+
 // ─── Foutklasse ───────────────────────────────────────────────────────────────
 class GroqError extends Error {
   constructor(statusCode, message) {
