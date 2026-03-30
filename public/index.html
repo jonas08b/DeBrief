@@ -2468,7 +2468,7 @@ document.getElementById('catTabs').addEventListener('click', e => {
   }
 
   // ── Verhalen renderen ─────────────────────────────────────────────────────
-  const SOURCE_LABELS = { vrt:'VRT Nieuws', hln:'HLN', wsj:'WSJ', euronews:'Euronews' };
+  const SOURCE_LABELS = { vrt:'VRT Nieuws', hln:'HLN', wsj:'WSJ', euronews:'Euronews', politico:'Politico', 'politico-opinion':'Politico Opinion' };
 
   function renderStories(stories) {
     const sorted = [...stories].sort((a, b) => (a.rank || 99) - (b.rank || 99));
