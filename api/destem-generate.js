@@ -65,16 +65,6 @@ const MAX_TOKENS = 1200;   // 950 was te krap voor 450 woorden + JSON
 const TIMEOUT_MS = 45_000;
 const MAX_ITEMS  = 80;
 
-// Beschikbare Gemini TTS stemmen — uitbreidbaar
-// Documentatie: https://ai.google.dev/gemini-api/docs/speech-generation
-const VOICES = {
-  Aoede:   'Warm, journalistiek (standaard)',
-  Kore:    'Helder, formeel',
-  Charon:  'Diep, gezaghebbend',
-  Fenrir:  'Krachtig, energiek',
-  Puck:    'Vriendelijk, toegankelijk',
-};
-
 // ─── Foutklasse ───────────────────────────────────────────────────────────────
 class GroqError extends Error {
   constructor(statusCode, message) {
@@ -285,7 +275,7 @@ async function saveBriefing({ audioBytes, mime, script, stories, date, voice }) 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Handler
+// Handler — ondersteunt zowel SSE (browser) als gewone JSON (cron)
 // ─────────────────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const authHeader = req.headers['authorization'] || '';
@@ -299,9 +289,57 @@ export default async function handler(req, res) {
   if (!GROQ_API_KEY)   return res.status(500).json({ error: 'GROQ_API_KEY ontbreekt' });
   if (!GEMINI_API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY ontbreekt' });
 
-  // Optionele stem via query param (?voice=Kore) — handig voor handmatig testen
   const voice = VOICES[req.query?.voice] ? req.query.voice : 'Aoede';
 
+  // Detecteer of de browser SSE verwacht (Accept: text/event-stream)
+  const wantsSSE = (req.headers['accept'] || '').includes('text/event-stream');
+
+  // ── SSE modus ─────────────────────────────────────────────────────────────
+  if (wantsSSE) {
+    res.setHeader('Content-Type',  'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection',    'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Vercel: schakel proxy-buffering uit
+    res.flushHeaders();
+
+    // Stuur een SSE-event met JSON-payload
+    const send = (event, data) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      // res.flush bestaat op sommige Node-omgevingen, niet allemaal
+      if (typeof res.flush === 'function') res.flush();
+    };
+
+    try {
+      send('status', { message: 'Nieuws ophalen…', step: 1, total: 4 });
+      const allItems = (await Promise.all(FEEDS.map(fetchItems))).flat();
+      if (allItems.length < 5) {
+        send('error', { message: 'Te weinig artikels opgehaald' });
+        return res.end();
+      }
+
+      send('status', { message: 'Script genereren via Groq…', step: 2, total: 4 });
+      const { stories, script } = await generateContent(allItems, GROQ_API_KEY);
+
+      // Stuur de verhalen al door zodat de UI ze meteen kan tonen
+      send('stories', { stories });
+
+      send('status', { message: 'Audio genereren via Gemini TTS…', step: 3, total: 4 });
+      const { bytes, mime } = await textToSpeech(script, GEMINI_API_KEY, voice);
+
+      send('status', { message: 'Opslaan in Blob…', step: 4, total: 4 });
+      const meta = await saveBriefing({ audioBytes: bytes, mime, script, stories, date: new Date(), voice });
+
+      // Klaar — stuur volledige metadata
+      send('done', { ok: true, storiesCount: stories.length, ...meta });
+    } catch (err) {
+      console.error('[DeStem generate SSE]', err);
+      send('error', { message: err.message });
+    }
+
+    return res.end();
+  }
+
+  // ── Gewone JSON modus (Vercel Cron) ───────────────────────────────────────
   try {
     const allItems = (await Promise.all(FEEDS.map(fetchItems))).flat();
     if (allItems.length < 5) return res.status(502).json({ error: 'Te weinig artikels' });
