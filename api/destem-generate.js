@@ -278,6 +278,16 @@ async function saveBriefing({ audioBytes, mime, script, stories, date, voice }) 
 // Handler — ondersteunt zowel SSE (browser) als gewone JSON (cron)
 // ─────────────────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  // CORS — nodig voor EventSource vanuit de browser
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Accept');
+
+  // Preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   const authHeader = req.headers['authorization'] || '';
   const cronSecret = process.env.CRON_SECRET || '';
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -300,6 +310,7 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection',    'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Vercel: schakel proxy-buffering uit
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.flushHeaders();
 
     // Stuur een SSE-event met JSON-payload
