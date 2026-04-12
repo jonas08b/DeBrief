@@ -243,12 +243,11 @@
   /* ── BOOKMARK BTN op kaart ── */
   .article-card-body { position: relative; }
   .bm-btn {
-    position: absolute; top: 10px; right: 10px;
     background: none; border: none; padding: 4px; cursor: pointer;
-    color: var(--ink-muted); line-height: 0;
+    color: var(--ink-muted); line-height: 0; flex-shrink: 0;
     -webkit-tap-highlight-color: transparent;
     transition: color .15s, transform .15s;
-    z-index: 2;
+    margin-left: auto;
   }
   .bm-btn:active { transform: scale(.85); }
   .bm-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -1512,9 +1511,8 @@ function render(errors=[]) {
     }
     html += `<div class="article-card-body">`;
     html += `<h3>${esc(art.title)}</h3>`;
-    html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span></div>`;
     const saved = bmHas(art);
-    html += `<button class="bm-btn${saved ? ' saved' : ''}" data-bm-idx="${idx}" aria-label="${saved ? 'Verwijder bladwijzer' : 'Bewaar artikel'}">${bmIconHTML(saved)}</button>`;
+    html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span><button class="bm-btn${saved ? ' saved' : ''}" data-bm-idx="${idx}" aria-label="${saved ? 'Verwijder bladwijzer' : 'Bewaar artikel'}">${bmIconHTML(saved)}</button></div>`;
     html += `</div></div>`;
   }
 
@@ -1593,8 +1591,7 @@ function renderOpgeslagen() {
     }
     html += `<div class="article-card-body" style="position:relative">`;
     html += `<h3>${esc(art.title)}</h3>`;
-    html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span></div>`;
-    html += `<button class="bm-btn saved" data-bm-link="${esc(art.link)}" aria-label="Verwijder bladwijzer">${bmIconHTML(true)}</button>`;
+    html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span><button class="bm-btn saved" data-bm-link="${esc(art.link)}" aria-label="Verwijder bladwijzer">${bmIconHTML(true)}</button></div>`;
     html += `</div></div>`;
   }
   panel.innerHTML = html;
