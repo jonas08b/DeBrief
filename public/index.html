@@ -96,7 +96,7 @@
   /* ── TAB BAR ONDERAAN ── */
   .tab-bar {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
-    background: rgba(255,255,255,.95);
+    background: rgba(39,42,45,.97);
     border-top: 1px solid var(--border);
     display: flex; align-items: stretch;
     padding-bottom: var(--safe-bottom);
@@ -309,7 +309,6 @@
   .article-card-placeholder { background: linear-gradient(135deg,#2A2720 0%,#1E1C18 100%); }
   .source-chip { background: var(--bg-card); }
   .source-chip.active { background: var(--ink); color: var(--bg); }
-  .tab-bar { background: rgba(39,42,45,.97); }
   .label-politiek  { background: #1E1030; color: #C4A0F5; }
   .label-economie  { background: #231500; color: #F0A040; }
   .label-binnenland{ background: var(--be-bg);    color: #6ADA8A; }
@@ -580,28 +579,6 @@
   }
   .destem-expand-tab.active {
     color: var(--ink); border-bottom-color: var(--accent);
-  }
-
-  /* Stemkeuze */
-  .destem-voice-row {
-    display: none; align-items: center; gap: 8px;
-    padding: 12px 20px 0; flex-wrap: wrap;
-  }
-  .destem-voice-row.visible { display: flex; }
-  .destem-voice-label {
-    font-size: 11px; font-weight: 700; letter-spacing: .06em;
-    text-transform: uppercase; color: var(--ink-faint);
-    white-space: nowrap;
-  }
-  .destem-voice-chip {
-    font-size: 11px; font-weight: 600; padding: 4px 11px;
-    border-radius: 20px; border: 1.5px solid var(--border);
-    background: none; color: var(--ink-muted); cursor: pointer;
-    font-family: var(--font-sans); transition: all .15s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .destem-voice-chip.active {
-    background: var(--ink); border-color: var(--ink); color: var(--bg);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -2325,11 +2302,6 @@ document.getElementById('catTabs').addEventListener('click', e => {
       <button class="destem-expand-tab active" data-panel="stories">5 verhalen</button>
       <button class="destem-expand-tab" data-panel="script">Script</button>
     </div>
-    <!-- Stemkeuze inline rechts -->
-    <div style="display:flex;align-items:center;gap:6px">
-      <span class="destem-voice-label">Stem</span>
-      <div id="destemVoiceChips" style="display:flex;gap:5px"></div>
-    </div>
   </div>
 
   <!-- Verhalen-lijst -->
@@ -2369,7 +2341,6 @@ document.getElementById('catTabs').addEventListener('click', e => {
   const storiesDiv    = document.getElementById('destemStories');
   const storiesList   = document.getElementById('destemStoriesList');
   const expandRow     = document.getElementById('destemExpandRow');
-  const voiceChips    = document.getElementById('destemVoiceChips');
   const dateLabel     = document.getElementById('destemDateLabel');
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -2378,12 +2349,8 @@ document.getElementById('catTabs').addEventListener('click', e => {
   let loading      = false;
   let rafId        = null;
   let activePanel  = 'stories'; // 'stories' | 'script'
-  let activeVoice  = localStorage.getItem('destem_voice') || 'Aoede';
+  const activeVoice  = 'Aoede';
   let currentMeta  = null;
-
-  const VOICES = {
-    Aoede: 'Aoede', Charon: 'Charon', Fenrir: 'Fenrir', Kore: 'Kore', Puck: 'Puck',
-  };
 
   // ── Open / Sluit ──────────────────────────────────────────────────────────
   function openSheet() {
@@ -2433,33 +2400,6 @@ document.getElementById('catTabs').addEventListener('click', e => {
     storiesDiv.classList.toggle('visible', activePanel === 'stories');
     scriptDiv.classList.toggle('visible',  activePanel === 'script');
   });
-
-  // ── Stemkeuze ─────────────────────────────────────────────────────────────
-  function renderVoiceChips() {
-    voiceChips.innerHTML = Object.keys(VOICES).map(v =>
-      `<button class="destem-voice-chip${v === activeVoice ? ' active' : ''}" data-voice="${v}">${v}</button>`
-    ).join('');
-  }
-
-  voiceChips.addEventListener('click', e => {
-    const chip = e.target.closest('[data-voice]');
-    if (!chip) return;
-    activeVoice = chip.dataset.voice;
-    localStorage.setItem('destem_voice', activeVoice);
-    renderVoiceChips();
-    // Als er al een briefing geladen is met een andere stem, opnieuw laden
-    if (currentMeta && currentMeta.voice !== activeVoice) {
-      loaded  = false;
-      loading = false;
-      if (audio) { audio.pause(); audio = null; }
-      playBtn.classList.remove('playing');
-      btn.classList.remove('playing');
-      cancelAnimationFrame(rafId);
-      loadBriefing();
-    }
-  });
-
-  renderVoiceChips();
 
   // ── Pas metadata toe op de UI (gedeeld door loadBriefing en generateBriefing)
   function applyMeta(data) {
