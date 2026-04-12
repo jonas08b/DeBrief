@@ -297,16 +297,6 @@
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  @keyframes slideInRight {
-    from { opacity: 0; transform: translateX(40px); }
-    to   { opacity: 1; transform: translateX(0); }
-  }
-  @keyframes slideInLeft {
-    from { opacity: 0; transform: translateX(-40px); }
-    to   { opacity: 1; transform: translateX(0); }
-  }
-  .feed-slide-right { animation: slideInRight .28s cubic-bezier(.25,.46,.45,.94) both; }
-  .feed-slide-left  { animation: slideInLeft  .28s cubic-bezier(.25,.46,.45,.94) both; }
   .article-card:nth-child(2) { animation-delay:.05s }
   .article-card:nth-child(3) { animation-delay:.10s }
   .article-card:nth-child(4) { animation-delay:.15s }
@@ -2246,9 +2236,6 @@ document.getElementById('feedContainer').addEventListener('touchend', e => {
   document.querySelector(`[data-tab="${nextTab}"]`)?.click();
 }, { passive: true });
 
-// ── Tab order for direction tracking ─────────────────────────────────────────
-let lastTabIdx = 0;
-
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.getElementById('catTabs').addEventListener('click', e => {
   const b = e.target.closest('.tab');
@@ -2257,10 +2244,6 @@ document.getElementById('catTabs').addEventListener('click', e => {
   const panel  = document.getElementById('marktPanel');
   const feed   = document.getElementById('feedContainer');
   const srcRow = document.querySelector('.source-row-wrap');
-
-  const newIdx = TAB_ORDER.indexOf(tab);
-  const dir    = newIdx > lastTabIdx ? 'right' : 'left';
-  lastTabIdx   = newIdx;
 
   document.querySelectorAll('#catTabs .tab').forEach(t => t.classList.remove('active'));
   b.classList.add('active');
@@ -2282,10 +2265,6 @@ document.getElementById('catTabs').addEventListener('click', e => {
     if (wrap) wrap.innerHTML = '';
     activeTab = tab;
     render();
-    // Apply slide animation
-    feed.classList.remove('feed-slide-right','feed-slide-left');
-    void feed.offsetWidth; // force reflow
-    feed.classList.add(dir === 'right' ? 'feed-slide-right' : 'feed-slide-left');
   }
 });
 
