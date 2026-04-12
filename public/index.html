@@ -240,6 +240,30 @@
     overflow: hidden; margin-bottom: 8px;
   }
 
+  /* ── BOOKMARK BTN op kaart ── */
+  .article-card-body { position: relative; }
+  .bm-btn {
+    position: absolute; top: 10px; right: 10px;
+    background: none; border: none; padding: 4px; cursor: pointer;
+    color: var(--ink-muted); line-height: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .15s, transform .15s;
+    z-index: 2;
+  }
+  .bm-btn:active { transform: scale(.85); }
+  .bm-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .bm-btn.saved { color: var(--accent); }
+  .bm-btn.saved svg { fill: var(--accent); }
+
+  /* ── OPGESLAGEN PANEL ── */
+  .opgeslagen-panel { display:none; max-width: 680px; margin: 0 auto; padding: 0 0 calc(var(--safe-bottom) + 88px); }
+  .opgeslagen-panel.visible { display: block; }
+  .opgeslagen-empty { text-align: center; padding: 60px 20px; color: var(--ink-muted); }
+  .opgeslagen-empty .icon { font-size: 40px; display: block; margin-bottom: 12px; }
+  .opgeslagen-empty p { font-size: 15px; line-height: 1.5; margin: 0; }
+  .opgeslagen-panel .section-head { margin: 20px 14px 12px; }
+  .opgeslagen-panel .article-card { margin-left: 14px; margin-right: 14px; }
+
   /* ── META ROW ── */
   .meta-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .source-time { font-size: 11px; color: var(--ink); white-space: nowrap; }
@@ -343,7 +367,7 @@
   .popup-sheet.open { transform: translateY(0); }
 
   .popup-header {
-    display: flex; align-items: center; justify-content: flex-end;
+    display: flex; align-items: center; justify-content: space-between;
     padding: 10px 20px 0;
   }
   .popup-close {
@@ -807,6 +831,9 @@
   <div class="header-top">
     <div class="logo">De<span>Brief</span></div>
     <div class="header-actions">
+      <button class="header-icon-btn" id="opgeslagenHeaderBtn" aria-label="Opgeslagen artikels">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 22h5a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v7"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M3.62 18.8A2.25 2.25 0 1 1 7 15.836a2.25 2.25 0 1 1 3.38 2.966l-2.626 2.856a1 1 0 0 1-1.507 0z"/></svg>
+      </button>
       <button class="header-icon-btn destem-btn" id="destemBtn" aria-label="DeStem audio-briefing">
         <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
         <span class="destem-pulse" aria-hidden="true" style="display:none"><span></span><span></span><span></span></span>
@@ -856,6 +883,9 @@
   </button>
   <button class="tab" data-tab="markt" id="marktTab">
     <svg viewBox="0 0 24 24"><path d="M12 16v5"/><path d="M16 14v7"/><path d="M20 10v11"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18v3"/><path d="M8 14v7"/></svg>
+  </button>
+  <button class="tab" data-tab="opgeslagen" id="opgeslagenTab">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 22h5a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v7"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M3.62 18.8A2.25 2.25 0 1 1 7 15.836a2.25 2.25 0 1 1 3.38 2.966l-2.626 2.856a1 1 0 0 1-1.507 0z"/></svg>
   </button>
 </nav>
 
@@ -913,11 +943,18 @@
   </div>
 </div>
 
+<!-- ── OPGESLAGEN PANEL ── -->
+<div id="opgeslagenPanel" class="opgeslagen-panel"></div>
+
 <div class="popup-overlay" id="popupOverlay"></div>
 <div class="popup-sheet" id="popupSheet">
   <div class="popup-handle"></div>
   <div class="popup-header">
     <button class="popup-close" id="popupClose" aria-label="Sluiten">&#x2715;</button>
+    <button class="bm-btn" id="popupBmBtn" aria-label="Bewaar artikel" style="position:static;margin-left:auto">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bm-add-icon"><path d="M12 7v6"/><path d="M15 10H9"/><path d="M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="bm-remove-icon" style="display:none"><path d="m14.5 7.5-5 5"/><path d="M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z"/><path d="m9.5 7.5 5 5"/></svg>
+    </button>
   </div>
   <div class="popup-body">
     <div class="popup-title" id="popupTitle"></div>
@@ -1476,6 +1513,8 @@ function render(errors=[]) {
     html += `<div class="article-card-body">`;
     html += `<h3>${esc(art.title)}</h3>`;
     html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span></div>`;
+    const saved = bmHas(art);
+    html += `<button class="bm-btn${saved ? ' saved' : ''}" data-bm-idx="${idx}" aria-label="${saved ? 'Verwijder bladwijzer' : 'Bewaar artikel'}">${bmIconHTML(saved)}</button>`;
     html += `</div></div>`;
   }
 
@@ -1509,6 +1548,59 @@ function isSeen(art, seenMap) {
   return !!seenMap[seenKey(art)];
 }
 
+// ── BLADWIJZERS ───────────────────────────────────────────────────────────────
+const BMARK_KEY = 'debrief_bookmarks_v1';
+
+function bmLoad() {
+  try { return JSON.parse(localStorage.getItem(BMARK_KEY) || '[]'); } catch { return []; }
+}
+function bmKey(art) { return art.link; }
+function bmHas(art) { return bmLoad().some(a => a.link === bmKey(art)); }
+function bmToggle(art) {
+  const list = bmLoad();
+  const idx = list.findIndex(a => a.link === bmKey(art));
+  if (idx >= 0) { list.splice(idx, 1); }
+  else {
+    list.unshift({ title: art.title, link: art.link, desc: art.desc || '', image: art.image || '',
+      source: art.source, pubDate: art.pubDate, cat: art.cat, savedAt: Date.now() });
+  }
+  try { localStorage.setItem(BMARK_KEY, JSON.stringify(list)); } catch {}
+  return idx < 0; // true = toegevoegd, false = verwijderd
+}
+
+function bmIconHTML(saved) {
+  if (saved) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 7.5-5 5"/><path d="M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z"/><path d="m9.5 7.5 5 5"/></svg>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v6"/><path d="M15 10H9"/><path d="M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z"/></svg>`;
+}
+
+function renderOpgeslagen() {
+  const panel = document.getElementById('opgeslagenPanel');
+  const list = bmLoad();
+  if (!list.length) {
+    panel.innerHTML = `<div class="opgeslagen-empty"><span class="icon">🔖</span><p>Nog niets opgeslagen.<br>Tik op het bladwijzer-icoon op een artikel.</p></div>`;
+    return;
+  }
+  let html = `<div class="section-head"><h3>Opgeslagen</h3><span class="count-chip">${list.length}</span></div>`;
+  for (const art of list) {
+    const saved = true;
+    html += `<div class="article-card" data-bm-link="${esc(art.link)}" style="cursor:pointer">`;
+    if (art.image) {
+      html += `<img class="article-card-img" src="${esc(art.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'article-card-placeholder'}))">`;
+    } else {
+      html += `<div class="article-card-placeholder"></div>`;
+    }
+    html += `<div class="article-card-body" style="position:relative">`;
+    html += `<h3>${esc(art.title)}</h3>`;
+    html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span></div>`;
+    html += `<button class="bm-btn saved" data-bm-link="${esc(art.link)}" aria-label="Verwijder bladwijzer">${bmIconHTML(true)}</button>`;
+    html += `</div></div>`;
+  }
+  panel.innerHTML = html;
+}
+
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 const dateBadgeEl = document.getElementById('dateBadge');
 if (dateBadgeEl) dateBadgeEl.textContent = formatDate();
@@ -1532,6 +1624,19 @@ async function init() {
 
 // ── EVENTS ────────────────────────────────────────────────────────────────────
 document.getElementById('feedContainer').addEventListener('click', e => {
+  // Bookmark knop — intercept vóór kaart-klik
+  const bmBtn = e.target.closest('.bm-btn[data-bm-idx]');
+  if (bmBtn) {
+    e.stopPropagation();
+    const idx = parseInt(bmBtn.dataset.bmIdx);
+    const art = allArticles[idx];
+    if (!art) return;
+    const added = bmToggle(art);
+    bmBtn.classList.toggle('saved', added);
+    bmBtn.setAttribute('aria-label', added ? 'Verwijder bladwijzer' : 'Bewaar artikel');
+    bmBtn.innerHTML = bmIconHTML(added);
+    return;
+  }
   const card = e.target.closest('[data-idx]');
   if (!card) return;
   const idx = parseInt(card.dataset.idx);
@@ -1602,8 +1707,10 @@ document.addEventListener('touchend', () => {
 init();
 
 // ── POPUP ─────────────────────────────────────────────────────────────────────
+let popupCurrentArt = null;
 
 function openPopup(art) {
+  popupCurrentArt = art;
   // Markeer als gelezen
   seenMark(seenKey(art));
   // Dim de kaart meteen zonder volledige re-render
@@ -1616,6 +1723,14 @@ function openPopup(art) {
   document.getElementById('popupTitle').textContent = art.title;
   document.getElementById('popupDesc').textContent = clean || 'Geen beschrijving beschikbaar.';
   document.getElementById('popupBtn').href = articleLink(art);
+
+  // Bookmark-knop state
+  const saved = bmHas(art);
+  const popupBm = document.getElementById('popupBmBtn');
+  popupBm.classList.toggle('saved', saved);
+  popupBm.querySelector('.bm-add-icon').style.display = saved ? 'none' : '';
+  popupBm.querySelector('.bm-remove-icon').style.display = saved ? '' : 'none';
+
   document.getElementById('popupOverlay').classList.add('open');
   document.getElementById('popupSheet').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -2198,7 +2313,7 @@ document.getElementById('marktDateApply').addEventListener('click', () => {
 });
 
 // ── TAB SWIPE ─────────────────────────────────────────────────────────────────
-const TAB_ORDER = ['alles', 'binnenland', 'buitenland', 'politiek', 'economie', 'markt'];
+const TAB_ORDER = ['alles', 'binnenland', 'buitenland', 'politiek', 'economie', 'markt', 'opgeslagen'];
 let swipeTabStartX = 0, swipeTabStartY = 0, swipeTabActive = false;
 
 document.getElementById('feedContainer').addEventListener('touchstart', e => {
@@ -2228,31 +2343,100 @@ document.getElementById('feedContainer').addEventListener('touchend', e => {
 document.getElementById('catTabs').addEventListener('click', e => {
   const b = e.target.closest('.tab');
   if (!b) return;
-  const tab    = b.dataset.tab;
-  const panel  = document.getElementById('marktPanel');
-  const feed   = document.getElementById('feedContainer');
-  const srcRow = document.querySelector('.source-row-wrap');
+  const tab          = b.dataset.tab;
+  const marktPanel   = document.getElementById('marktPanel');
+  const opgsPanel    = document.getElementById('opgeslagenPanel');
+  const feed         = document.getElementById('feedContainer');
+  const srcRow       = document.querySelector('.source-row-wrap');
 
   document.querySelectorAll('#catTabs .tab').forEach(t => t.classList.remove('active'));
   b.classList.add('active');
 
+  // Reset alle panels
+  marktPanel.style.display = 'none';
+  opgsPanel.classList.remove('visible');
+  feed.style.display = 'block';
+  if (srcRow) srcRow.style.display = '';
+
   if (tab === 'markt') {
-    panel.style.display = 'block';
-    feed.style.display  = 'none';
+    marktPanel.style.display = 'block';
+    feed.style.display = 'none';
     if (srcRow) srcRow.style.display = 'none';
     if (!mktInited) {
       mktInited = true;
       wlLoad();
       renderTickerList();
     }
+    const wrap = document.getElementById('marktTVWidget');
+    if (wrap) wrap.innerHTML = '';
+  } else if (tab === 'opgeslagen') {
+    feed.style.display = 'none';
+    if (srcRow) srcRow.style.display = 'none';
+    opgsPanel.classList.add('visible');
+    renderOpgeslagen();
   } else {
-    panel.style.display = 'none';
-    feed.style.display  = 'block';
-    if (srcRow) srcRow.style.display = '';
     const wrap = document.getElementById('marktTVWidget');
     if (wrap) wrap.innerHTML = '';
     activeTab = tab;
     render();
+  }
+});
+
+// ── OPGESLAGEN PANEL klikken ───────────────────────────────────────────────────
+document.getElementById('opgeslagenPanel').addEventListener('click', e => {
+  // Bookmark-knop verwijder
+  const bmBtn = e.target.closest('.bm-btn[data-bm-link]');
+  if (bmBtn) {
+    e.stopPropagation();
+    const link = bmBtn.dataset.bmLink;
+    const list = bmLoad();
+    const idx2 = list.findIndex(a => a.link === link);
+    if (idx2 >= 0) { list.splice(idx2, 1); localStorage.setItem(BMARK_KEY, JSON.stringify(list)); }
+    renderOpgeslagen();
+    // Update ook bookmark-knop in feed als artikel zichtbaar is
+    document.querySelectorAll(`.bm-btn[data-bm-idx]`).forEach(btn => {
+      const art = allArticles[parseInt(btn.dataset.bmIdx)];
+      if (art && art.link === link) {
+        btn.classList.remove('saved');
+        btn.setAttribute('aria-label', 'Bewaar artikel');
+        btn.innerHTML = bmIconHTML(false);
+      }
+    });
+    return;
+  }
+  // Kaart klikken
+  const card = e.target.closest('[data-bm-link]');
+  if (!card || card.classList.contains('bm-btn')) return;
+  const link = card.dataset.bmLink;
+  const list = bmLoad();
+  const art = list.find(a => a.link === link);
+  if (art) openPopup(art);
+});
+
+// ── HEADER opgeslagen knop ─────────────────────────────────────────────────────
+document.getElementById('opgeslagenHeaderBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.querySelector('[data-tab="opgeslagen"]')?.click();
+});
+
+// ── POPUP bookmark knop ────────────────────────────────────────────────────────
+document.getElementById('popupBmBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!popupCurrentArt) return;
+  const added = bmToggle(popupCurrentArt);
+  const btn = document.getElementById('popupBmBtn');
+  btn.classList.toggle('saved', added);
+  btn.querySelector('.bm-add-icon').style.display = added ? 'none' : '';
+  btn.querySelector('.bm-remove-icon').style.display = added ? '' : 'none';
+  // Update kaart in feed
+  const idx = allArticles.indexOf(popupCurrentArt);
+  if (idx >= 0) {
+    const feedBtn = document.querySelector(`.bm-btn[data-bm-idx="${idx}"]`);
+    if (feedBtn) {
+      feedBtn.classList.toggle('saved', added);
+      feedBtn.setAttribute('aria-label', added ? 'Verwijder bladwijzer' : 'Bewaar artikel');
+      feedBtn.innerHTML = bmIconHTML(added);
+    }
   }
 });
 
