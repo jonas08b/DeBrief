@@ -844,10 +844,9 @@
   <div class="source-row-wrap">
     <div class="source-row" id="sourceRow">
       <button class="source-chip active" data-source="alle">Alle bronnen</button>
-      <button class="source-chip" data-source="VRT Nieuws">VRT Nieuws</button>
+      <button class="source-chip" data-source="De Tijd">De Tijd</button>
+      <button class="source-chip" data-source="De Standaard">De Standaard</button>
       <button class="source-chip" data-source="HLN">HLN</button>
-      <button class="source-chip" data-source="WSJ">WSJ</button>
-      <button class="source-chip" data-source="Euronews">Euronews</button>
     </div>
   </div>
 </div>
@@ -967,17 +966,20 @@ const RSS2JSON_BASE = 'https://api.rss2json.com/v1/api.json?api_key=goxrkjvrqv2d
 
 // Sources with translate flag for non-Dutch outlets
 const SOURCES = [
-  { id:'vrt',      name:'VRT Nieuws', region:'be',    translate:false, urls:['https://www.vrt.be/vrtnws/nl.rss.articles.xml'] },
-  { id:'hln',      name:'HLN',        region:'be',    translate:false, urls:['https://www.hln.be/home/rss.xml'] },
-  { id:'wsj',      name:'WSJ',        region:'world', translate:true,  urls:[
-      'https://feeds.content.dowjones.io/public/rss/socialpoliticsfeed',
-      'https://feeds.content.dowjones.io/public/rss/socialeconomyfeed',
-      'https://feeds.content.dowjones.io/public/rss/RSSWorldNews'
+  { id:'detijd',     name:'De Tijd',      region:'be', translate:false, urls:[
+      'https://www.tijd.be/rss/top_stories.xml',
+      'https://www.tijd.be/rss/politiek.xml',
+      'https://www.tijd.be/rss/opinie.xml',
+      'https://www.tijd.be/rss/ondernemen.xml'
   ]},
-  { id:'euronews', name:'Euronews',   region:'eu',    translate:true,  urls:[
-      'https://www.euronews.com/rss?format=mrss&level=theme&name=news',
-      'https://www.euronews.com/rss?format=mrss&level=vertical&name=my-europe'
-  ]}
+  { id:'standaard',  name:'De Standaard', region:'be', translate:false, urls:[
+      'https://www.standaard.be/binnenland/rss/',
+      'https://www.standaard.be/buitenland/rss/',
+      'https://www.standaard.be/economie/rss/',
+      'https://www.standaard.be/economie/beurs/rss/',
+      'https://www.standaard.be/opinies/rss/'
+  ]},
+  { id:'hln',        name:'HLN',          region:'be', translate:false, urls:['https://www.hln.be/home/rss.xml'] }
 ];
 
 // ── CATEGORISATION ────────────────────────────────────────────────────────────
@@ -1134,9 +1136,6 @@ const CAT_RULES = [
 ];
 
 function articleLink(art) {
-  if (art.source.name === 'WSJ') {
-    return 'https://archive.ph/submit/?url=' + encodeURIComponent(art.link);
-  }
   return art.link;
 }
 
@@ -1189,17 +1188,27 @@ function categoriseHLN(url) {
   return 'verwijder';
 }
 
-function categoriseWSJ(url) {
+function categoriseDeTijd(url) {
   if (!url) return null;
   const u = url.toLowerCase();
 
-  if (/wsj\.com\/(business|market-data|economy|finance|tech|news\/financial|wealth)/.test(u)) return 'economie';
-  if (/wsj\.com\/(politics|news\/policy)/.test(u)) return 'politiek';
-  if (/wsj\.com\/opinion/.test(u)) return 'opinie';
-  if (/wsj\.com\/(world|us-news|news\/europe|news\/asia|news\/africa|news\/middle-east)/.test(u)) return 'buitenland';
-
+  if (/tijd\.be\/rss\/politiek/.test(u)) return 'politiek';
+  if (/tijd\.be\/rss\/ondernemen/.test(u)) return 'economie';
+  // top_stories en opinie: geen categorie — verwijder
   return 'verwijder';
 }
+
+function categoriseDeStandaard(url) {
+  if (!url) return null;
+  const u = url.toLowerCase();
+
+  if (/standaard\.be\/binnenland/.test(u)) return 'binnenland';
+  if (/standaard\.be\/buitenland/.test(u)) return 'buitenland';
+  if (/standaard\.be\/economie/.test(u)) return 'economie';
+  // opinies: geen categorie — verwijder
+  return 'verwijder';
+}
+
 
 function categorise(title) {
   const txt = title.toLowerCase();
@@ -1254,10 +1263,14 @@ async function fetchFeed(url, meta) {
       const hlnCat = categoriseHLN(link);
       if (hlnCat === 'verwijder') return null;
       cat = hlnCat;
-    } else if (meta.id === 'wsj') {
-      const wsjCat = categoriseWSJ(link);
-      if (wsjCat === 'verwijder') return null;
-      cat = wsjCat;
+    } else if (meta.id === 'detijd') {
+      const detijdCat = categoriseDeTijd(link);
+      if (detijdCat === 'verwijder') return null;
+      cat = detijdCat;
+    } else if (meta.id === 'standaard') {
+      const standaardCat = categoriseDeStandaard(link);
+      if (standaardCat === 'verwijder') return null;
+      cat = standaardCat;
     } else {
       cat = categorise(title);
     }
@@ -1402,17 +1415,8 @@ async function loadAll() {
 
   let arts = settled.flatMap(r => r.status==='fulfilled' ? r.value : []);
 
-  // Groq: categorisatie (VRT + Euronews) + vertaling (Euronews)
-  // WSJ wordt gecategoriseerd via categoriseWSJ() — geen Groq nodig
-  // Sport-artikelen worden uitgesloten — Groq kent geen 'sport' categorie en zou ze fout labelen
-  const groqArts = arts
-    .map((a, i) => ({
-      index: i,
-      title: a.title,
-      needsGroq: ['vrt','euronews'].includes(a.source.id) && a.cat !== 'sport',
-      translate: ['euronews'].includes(a.source.id)
-    }))
-    .filter(a => a.needsGroq);
+  // Groq is niet meer nodig: alle sources (De Tijd, De Standaard, HLN) zijn Nederlands met URL-gebaseerde categorisatie
+  const groqArts = [];
 
   if (groqArts.length) {
     try {
@@ -2712,7 +2716,7 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
   }
 
   // ── Verhalen renderen ─────────────────────────────────────────────────────
-  const SOURCE_LABELS = { vrt:'VRT Nieuws', hln:'HLN', wsj:'WSJ', euronews:'Euronews', politico:'Politico', 'politico-opinion':'Politico Opinion' };
+  const SOURCE_LABELS = { detijd:'De Tijd', standaard:'De Standaard', hln:'HLN', politico:'Politico', 'politico-opinion':'Politico Opinion' };
 
   function renderStories(stories) {
     const sorted = [...stories].sort((a, b) => (a.rank || 99) - (b.rank || 99));
