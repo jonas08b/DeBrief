@@ -1194,7 +1194,8 @@ function categoriseDeTijd(url) {
 
   if (/tijd\.be\/rss\/politiek/.test(u)) return 'politiek';
   if (/tijd\.be\/rss\/ondernemen/.test(u)) return 'economie';
-  // top_stories en opinie: geen categorie — verwijder
+  if (/tijd\.be\/rss\/nieuws/.test(u)) return 'binnenland';
+  if (/tijd\.be\/rss\/ondernemen/.test(u)) return 'binnenland';
   return 'verwijder';
 }
 
@@ -1205,7 +1206,7 @@ function categoriseDeStandaard(url) {
   if (/standaard\.be\/binnenland/.test(u)) return 'binnenland';
   if (/standaard\.be\/buitenland/.test(u)) return 'buitenland';
   if (/standaard\.be\/economie/.test(u)) return 'economie';
-  // opinies: geen categorie — verwijder
+  if (/standaard\.be\/opinies/.test(u)) return 'binnenland';
   return 'verwijder';
 }
 
