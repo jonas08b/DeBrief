@@ -88,10 +88,10 @@
     background: none; border: none; cursor: pointer;
     color: var(--ink-muted); transition: background .15s, color .15s;
     -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
   }
   .header-icon-btn:hover { background: var(--border); color: var(--ink); }
   .header-icon-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .date-badge { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
   .header-date {
     font-size: 13px; font-weight: 500; color: var(--ink-muted);
     letter-spacing: .01em; white-space: nowrap;
@@ -110,13 +110,18 @@
   .tab {
     flex: 1; display: flex; flex-direction: column; align-items: center;
     justify-content: center;
-    padding: 12px 2px; border: none; background: none;
+    padding: 10px 2px 8px; border: none; background: none;
     color: var(--ink-faint);
     cursor: pointer; -webkit-tap-highlight-color: transparent;
     transition: color .15s; min-width: 0;
+    gap: 4px;
   }
   .tab svg { width: 24px; height: 24px; stroke: currentColor; fill: none;
     stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-label {
+    font-size: 10px; font-weight: 500; letter-spacing: .01em;
+    white-space: nowrap; color: inherit;
+  }
   .tab.active { color: var(--accent); }
   .tab.active svg { stroke-width: 2.2; }
 
@@ -139,8 +144,6 @@
 
   /* ── FEED ── */
   .feed { padding: 0 0 calc(var(--safe-bottom) + 88px); max-width: 680px; margin: 0 auto; }
-
-  /* Section head and article cards get horizontal padding (top-story is full-bleed) */
   .feed .section-head { margin: 20px 14px 12px; }
   .feed .article-card { margin-left: 14px; margin-right: 14px; }
   .feed .error-banner { margin: 14px 14px 0; }
@@ -187,7 +190,6 @@
   }
   .top-story-body { padding: 12px 16px 20px; }
   .top-story .meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 0; }
-  .top-badge { display: none; /* hidden in new design — pill on image instead */ }
   .top-story h2 {
     font-family: var(--font-serif); font-size: 24px; line-height: 1.25;
     letter-spacing: -.3px; color: var(--ink); margin-bottom: 10px;
@@ -228,11 +230,12 @@
   }
   .article-card-placeholder {
     width: 100px; min-width: 100px; height: 100px; flex-shrink: 0;
-    background: linear-gradient(135deg,#EDEAE4 0%,#DDD9D2 100%);
+    background: linear-gradient(135deg,#2A2720 0%,#1E1C18 100%);
   }
   .article-card-body {
     padding: 13px 14px; flex: 1; display: flex;
     flex-direction: column; justify-content: space-between; min-width: 0;
+    position: relative;
   }
   .article-card h3 {
     font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--ink);
@@ -240,8 +243,7 @@
     overflow: hidden; margin-bottom: 8px;
   }
 
-  /* ── BOOKMARK BTN op kaart ── */
-  .article-card-body { position: relative; }
+  /* ── BOOKMARK BTN ── */
   .bm-btn {
     background: none; border: none; padding: 4px; cursor: pointer;
     color: var(--ink-muted); line-height: 0; flex-shrink: 0;
@@ -284,10 +286,10 @@
   .label-eu      { color: var(--eu-color); }
   .label-be      { color: var(--be-color); }
   .label-world   { color: var(--world-color); }
-  .label-politiek  { background: #F0EBF8; color: #5C2D91; }
-  .label-economie  { background: #FFF4E5; color: #8B4500; }
-  .label-binnenland{ background: #EBF5EF; color: #1A5C2A; }
-  .label-buitenland{ background: #F7F0E8; color: #7B3F00; }
+  .label-politiek  { background: #1E1030; color: #C4A0F5; }
+  .label-economie  { background: #231500; color: #F0A040; }
+  .label-binnenland{ background: var(--be-bg); color: #6ADA8A; }
+  .label-buitenland{ background: var(--world-bg); color: #D4945A; }
 
   /* ── PROGRESS BAR ── */
   .progress-bar {
@@ -311,9 +313,9 @@
 
   /* ── ERROR ── */
   .error-banner {
-    background: #FFF0F0; border: 1px solid #FFCDD2;
+    background: #2E0D0D; border: 1px solid #5A1A1A;
     border-radius: 12px; padding: 10px 14px;
-    font-size: 12px; color: #B71C1C; margin-bottom: 12px;
+    font-size: 12px; color: #F87171; margin-bottom: 12px;
   }
 
   /* ── EMPTY ── */
@@ -332,15 +334,6 @@
   .article-card:nth-child(6) { animation-delay:.25s }
   .article-card:nth-child(7) { animation-delay:.30s }
   .article-card:nth-child(8) { animation-delay:.35s }
-
-  /* Always dark — no separate dark media query needed */
-  .article-card-placeholder { background: linear-gradient(135deg,#2A2720 0%,#1E1C18 100%); }
-  .source-chip { background: var(--bg-card); }
-  .source-chip.active { background: var(--ink); color: var(--bg); }
-  .label-politiek  { background: #1E1030; color: #C4A0F5; }
-  .label-economie  { background: #231500; color: #F0A040; }
-  .label-binnenland{ background: var(--be-bg);    color: #6ADA8A; }
-  .label-buitenland{ background: var(--world-bg); color: #D4945A; }
 
   /* ── ARTICLE POPUP ── */
   .popup-overlay {
@@ -403,32 +396,10 @@
   .popup-btn:hover  { background: var(--accent); }
   .popup-btn:active { background: var(--accent); }
 
-  .popup-sheet { background: var(--bg-card); }
-  .popup-close { background: var(--border); color: var(--ink-muted); }
-  .popup-close:hover { background: var(--ink-faint); }
-
-  /* ── DESTEM KNOP (als header icon) ── */
+  /* ── DESTEM KNOP ── */
   .header-icon-btn.destem-btn.playing {
     background: var(--accent); color: #fff;
   }
-  .header-icon-btn.destem-btn .destem-pulse {
-    display: none; align-items: center; gap: 2px;
-    position: absolute;
-  }
-  .header-icon-btn.destem-btn.playing .destem-pulse { display: flex; }
-  .destem-pulse span {
-    display: inline-block; width: 3px; border-radius: 2px;
-    background: currentColor; animation: destem-bar .8s ease infinite;
-  }
-  .destem-pulse span:nth-child(1) { height: 8px;  animation-delay: 0s; }
-  .destem-pulse span:nth-child(2) { height: 12px; animation-delay: .15s; }
-  .destem-pulse span:nth-child(3) { height: 6px;  animation-delay: .30s; }
-  @keyframes destem-bar { 0%,100%{transform:scaleY(.4)} 50%{transform:scaleY(1)} }
-
-  /* - DeAnalist Knop - */
-  <a href="https://de-analist-omega.vercel.app" class="header-icon-btn" aria-label="DeAnalist">
-  <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="7 12 12 7 16 11 21 6"/></svg>
-</a>
 
   /* ── DESTEM PANEEL ── */
   .destem-overlay {
@@ -487,7 +458,6 @@
 
   .destem-player { padding: 20px 20px 0; }
 
-  /* Progress bar */
   .destem-progress-wrap {
     position: relative; height: 4px; border-radius: 2px;
     background: var(--border); margin-bottom: 10px; cursor: pointer;
@@ -506,13 +476,11 @@
     pointer-events: none;
   }
 
-  /* Tijden */
   .destem-times {
     display: flex; justify-content: space-between;
     font-size: 11px; color: var(--ink-faint); margin-bottom: 18px;
   }
 
-  /* Controls */
   .destem-controls {
     display: flex; align-items: center; justify-content: center; gap: 24px;
     margin-bottom: 20px;
@@ -542,7 +510,6 @@
   .destem-play-btn.playing svg .play-icon { display: none; }
   .destem-play-btn:not(.playing) svg .pause-icon { display: none; }
 
-  /* Status */
   .destem-status {
     text-align: center; font-size: 13px; color: var(--ink-muted);
     min-height: 40px; display: flex; align-items: center;
@@ -555,9 +522,7 @@
   }
 
   /* ── DESTEM STORIES ── */
-  .destem-stories {
-    padding: 4px 20px 0; display: none;
-  }
+  .destem-stories { padding: 4px 20px 0; display: none; }
   .destem-stories.visible { display: block; }
   .destem-stories-label {
     font-size: 10px; font-weight: 700; letter-spacing: .1em;
@@ -580,16 +545,12 @@
     font-size: 13px; font-weight: 600; color: var(--ink);
     line-height: 1.4; margin-bottom: 4px;
   }
-  .destem-story-summary {
-    font-size: 12px; color: var(--ink-muted); line-height: 1.5;
-  }
+  .destem-story-summary { font-size: 12px; color: var(--ink-muted); line-height: 1.5; }
   .destem-story-source {
     font-size: 10px; font-weight: 600; letter-spacing: .06em;
-    text-transform: uppercase; color: var(--ink-faint);
-    margin-top: 4px;
+    text-transform: uppercase; color: var(--ink-faint); margin-top: 4px;
   }
 
-  /* Script tekst */
   .destem-script {
     margin: 0 20px; padding: 14px 16px;
     background: var(--bg); border: 1px solid var(--border);
@@ -601,7 +562,6 @@
   .destem-script::-webkit-scrollbar { display: none; }
   .destem-script.visible { display: block; }
 
-  /* Uitklap-rij (verhalen / script toggle) */
   .destem-expand-row {
     display: none; align-items: center; justify-content: space-between;
     padding: 10px 20px 0;
@@ -617,214 +577,6 @@
   .destem-expand-tab.active {
     color: var(--ink); border-bottom-color: var(--accent);
   }
-
-  @media (prefers-color-scheme: dark) {
-    .destem-play-btn { background: var(--ink); }
-    .destem-script   { background: var(--bg); }
-  }
-
-  /* ── MARKT PANEL ── */
-  .markt-panel {
-    position: fixed; inset: 0;
-    top: 0; z-index: 50;
-    background: var(--bg);
-    padding: calc(var(--safe-top) + 90px) 0 calc(var(--safe-bottom) + 80px);
-    overflow-y: auto; -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .markt-panel::-webkit-scrollbar { display: none; }
-
-  .markt-search-wrap { padding: 0 16px 12px; }
-  .markt-search-box {
-    display: flex; align-items: center; gap: 8px;
-    background: var(--bg-card); border: none;
-    border-radius: 14px; padding: 0 14px; height: 46px;
-    box-shadow: var(--shadow-card);
-  }
-  .markt-search-icon {
-    width: 16px; height: 16px; flex-shrink: 0;
-    stroke: var(--ink-faint); fill: none;
-    stroke-width: 2; stroke-linecap: round;
-  }
-  .markt-search-input {
-    flex: 1; border: none; background: none; outline: none;
-    font-family: var(--font-sans); font-size: 16px; color: var(--ink);
-  }
-  .markt-search-input::placeholder { color: var(--ink-faint); }
-  .markt-search-submit {
-    font-family: var(--font-sans); font-size: 12px; font-weight: 600;
-    color: var(--accent); background: none; border: none; cursor: pointer;
-    padding: 4px 0; white-space: nowrap;
-  }
-
-  /* Ticker list */
-  .markt-ticker-list { padding: 0 16px; }
-  .markt-section-label {
-    font-size: 10px; font-weight: 700; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--ink-faint);
-    margin: 16px 0 8px;
-  }
-  .markt-ticker-row {
-    display: flex; align-items: center;
-    background: var(--bg-card); border: none;
-    border-radius: 14px; padding: 12px 14px;
-    margin-bottom: 8px; cursor: pointer;
-    transition: transform .15s, box-shadow .15s;
-    box-shadow: var(--shadow-card);
-    -webkit-tap-highlight-color: transparent;
-    gap: 12px;
-  }
-  .markt-ticker-row:active { transform: scale(.985); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-  .markt-ticker-info { flex: 1; min-width: 0; }
-  .markt-ticker-symbol { font-size: 13px; font-weight: 700; color: var(--ink); }
-  .markt-ticker-name { font-size: 11px; color: var(--ink-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .markt-ticker-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .markt-ticker-price { font-size: 14px; font-weight: 600; color: var(--ink); }
-  .markt-ticker-change {
-    font-size: 11px; font-weight: 600;
-    padding: 2px 7px; border-radius: 4px;
-  }
-  .markt-ticker-change.pos { background: #E6F4EC; color: #1A7A3A; }
-  .markt-ticker-change.neg { background: #FDECEA; color: #C8311A; }
-  .markt-ticker-change.neu { background: var(--border); color: var(--ink-muted); }
-
-  /* Swipe to delete */
-  .markt-swipe-wrap {
-    position: relative; overflow: hidden;
-    border-radius: 14px; margin-bottom: 8px;
-  }
-  .markt-swipe-wrap .markt-ticker-row {
-    margin-bottom: 0; border-radius: 0;
-    transition: transform .25s ease;
-    position: relative; z-index: 1;
-    box-shadow: none;
-  }
-  .markt-swipe-delete {
-    position: absolute; right: 0; top: 0; bottom: 0;
-    width: 80px; background: #C8311A;
-    display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 12px; font-weight: 700;
-    letter-spacing: .04em; text-transform: uppercase;
-    cursor: pointer; z-index: 0;
-  }
-
-  /* Detail */
-  .markt-detail { padding: 0 16px 24px; animation: fadeUp .2s ease both; }
-  .markt-detail-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  .markt-back-btn {
-    display: flex; align-items: center; gap: 4px;
-    background: none; border: none; cursor: pointer;
-    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
-    color: var(--accent); padding: 0;
-  }
-  .markt-back-btn svg { width: 18px; height: 18px; stroke: var(--accent); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-  .markt-watchlist-btn {
-    font-size: 12px; font-weight: 600; padding: 6px 14px;
-    border-radius: 20px; cursor: pointer;
-    font-family: var(--font-sans);
-    transition: all .15s; -webkit-tap-highlight-color: transparent;
-  }
-  .markt-watchlist-btn.add { background: var(--accent); color: #fff; border: none; }
-  .markt-watchlist-btn.remove { background: none; border: 1.5px solid var(--border); color: var(--ink-muted); }
-
-  .markt-detail-hero {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    margin-bottom: 20px;
-  }
-  .markt-detail-name { font-family: var(--font-serif); font-size: 22px; line-height: 1.2; color: var(--ink); }
-  .markt-detail-symbol { font-size: 12px; color: var(--ink-muted); margin-top: 4px; }
-  .markt-detail-price-wrap { text-align: right; }
-  .markt-detail-price { font-size: 24px; font-weight: 700; color: var(--ink); }
-  .markt-detail-change { font-size: 14px; font-weight: 600; margin-top: 4px; }
-  .markt-detail-change.pos { color: #1A7A3A; }
-  .markt-detail-change.neg { color: #C8311A; }
-  .markt-detail-change.neu { color: var(--ink-muted); }
-
-  /* Period row */
-  .markt-period-row { display: flex; gap: 6px; margin-bottom: 12px; }
-  .markt-period {
-    font-family: var(--font-sans); font-size: 12px; font-weight: 600;
-    padding: 5px 12px; border-radius: 20px;
-    border: 1.5px solid var(--border); background: none;
-    color: var(--ink-muted); cursor: pointer;
-    transition: all .15s; -webkit-tap-highlight-color: transparent;
-  }
-  .markt-period.active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
-
-  /* Custom dates */
-  .markt-custom-dates {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 12px; flex-wrap: wrap;
-  }
-  .markt-date-input {
-    font-family: var(--font-sans); font-size: 16px;
-    padding: 6px 10px; border-radius: 8px;
-    border: 1.5px solid var(--border); background: var(--bg-card);
-    color: var(--ink); outline: none;
-  }
-  .markt-date-sep { color: var(--ink-muted); font-size: 13px; }
-  .markt-date-apply {
-    font-family: var(--font-sans); font-size: 12px; font-weight: 600;
-    padding: 6px 14px; border-radius: 8px;
-    background: var(--accent); color: #fff; border: none; cursor: pointer;
-  }
-
-  /* Chart */
-  .markt-chart-wrap {
-    position: relative; background: transparent;
-    border: none; border-radius: 16px;
-    overflow: hidden; margin-bottom: 16px; height: 300px;
-    box-shadow: var(--shadow-card);
-  }
-  #marktTVWidget { height: 100%; width: 100%; }
-  #marktTVWidget iframe { border: none !important; }
-
-
-  /* Stats row */
-  .markt-stats-row {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
-  .markt-stat-card {
-    background: var(--bg-card); border: none;
-    border-radius: 14px; padding: 12px 14px;
-    box-shadow: var(--shadow-card);
-  }
-  .markt-stat-label { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 4px; }
-  .markt-stat-value { font-size: 15px; font-weight: 700; color: var(--ink); }
-  .markt-stat-value.pos { color: #1A7A3A; }
-  .markt-stat-value.neg { color: #C8311A; }
-
-  .markt-ticker-skeleton {
-    height: 68px; background: var(--bg-card); border: none;
-    border-radius: 14px; margin-bottom: 8px;
-    background: linear-gradient(90deg, var(--bg-card) 25%, var(--border) 50%, var(--bg-card) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.2s infinite;
-  }
-  @keyframes shimmer { to { background-position: -200% 0; } }
-
-
-  .markt-loading-dot {
-    display: inline-block; width: 6px; height: 6px;
-    border-radius: 50%; background: var(--ink-faint);
-    animation: pulse 1s ease infinite;
-  }
-  @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
-  .markt-search-error {
-    font-size: 12px; color: var(--accent);
-    margin-top: 6px; padding: 0 2px;
-  }
-  .markt-ticker-change.pos { background: #0D2E18; color: #4ADE80; }
-  .markt-ticker-change.neg { background: #2E0D0D; color: #F87171; }
-  .markt-detail-change.pos { color: #4ADE80; }
-  .markt-detail-change.neg { color: #F87171; }
-  .markt-stat-value.pos { color: #4ADE80; }
-  .markt-stat-value.neg { color: #F87171; }
-
 </style>
 </head>
 <body>
@@ -835,17 +587,21 @@
   <div class="header-top">
     <div class="logo">De<span>Brief</span></div>
     <div class="header-actions">
+      <!-- DeAnalist knop -->
+      <a href="https://de-analist-omega.vercel.app" class="header-icon-btn" aria-label="DeAnalist" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="7 12 12 7 16 11 21 6"/></svg>
+      </a>
+      <!-- Opgeslagen artikels knop -->
       <button class="header-icon-btn" id="opgeslagenHeaderBtn" aria-label="Opgeslagen artikels">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 22h5a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v7"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M3.62 18.8A2.25 2.25 0 1 1 7 15.836a2.25 2.25 0 1 1 3.38 2.966l-2.626 2.856a1 1 0 0 1-1.507 0z"/></svg>
       </button>
+      <!-- DeStem knop -->
       <button class="header-icon-btn destem-btn" id="destemBtn" aria-label="DeStem audio-briefing">
         <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-        <span class="destem-pulse" aria-hidden="true" style="display:none"><span></span><span></span><span></span></span>
       </button>
       <span class="header-date" id="headerDate"></span>
     </div>
   </div>
-  <!-- Source filter chips -->
   <div class="source-row-wrap">
     <div class="source-row" id="sourceRow">
       <button class="source-chip active" data-source="alle">Alle bronnen</button>
@@ -860,6 +616,7 @@
   <div class="ptr-spinner" id="ptrSpinner"></div>
   <span id="ptrText">Loslaten om te verversen</span>
 </div>
+
 <div id="feedContainer" class="feed">
   <div class="status-screen">
     <div class="spinner"></div>
@@ -867,84 +624,32 @@
   </div>
 </div>
 
-
 <nav class="tab-bar" id="catTabs">
   <button class="tab active" data-tab="alles">
     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <span class="tab-label">Voorpagina</span>
   </button>
   <button class="tab" data-tab="binnenland">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span class="tab-label">Binnenland</span>
   </button>
   <button class="tab" data-tab="buitenland">
     <svg viewBox="0 0 24 24"><path d="M21.54 15H17a2 2 0 0 0-2 2v4.54"/><path d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"/><path d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"/><circle cx="12" cy="12" r="10"/></svg>
-  </button>
-  <button class="tab" data-tab="politiek">
-    <svg viewBox="0 0 24 24"><path d="M10 18v-7"/><path d="M11.12 2.198a2 2 0 0 1 1.76.006l7.866 3.847c.476.233.31.949-.22.949H3.474c-.53 0-.695-.716-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/></svg>
+    <span class="tab-label">Wereld</span>
   </button>
   <button class="tab" data-tab="economie">
     <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    <span class="tab-label">Economie</span>
   </button>
-  <button class="tab" data-tab="markt" id="marktTab">
-    <svg viewBox="0 0 24 24"><path d="M12 16v5"/><path d="M16 14v7"/><path d="M20 10v11"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18v3"/><path d="M8 14v7"/></svg>
+  <button class="tab" data-tab="politiek">
+    <svg viewBox="0 0 24 24"><path d="M10 18v-7"/><path d="M11.12 2.198a2 2 0 0 1 1.76.006l7.866 3.847c.476.233.31.949-.22.949H3.474c-.53 0-.695-.716-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/></svg>
+    <span class="tab-label">Politiek</span>
   </button>
   <button class="tab" data-tab="opgeslagen" id="opgeslagenTab">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 22h5a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v7"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M3.62 18.8A2.25 2.25 0 1 1 7 15.836a2.25 2.25 0 1 1 3.38 2.966l-2.626 2.856a1 1 0 0 1-1.507 0z"/></svg>
+    <span class="tab-label">MijnBrief</span>
   </button>
 </nav>
-
-
-
-<!-- ── MARKT PANEL ── -->
-<div id="marktPanel" class="markt-panel" style="display:none">
-  <div class="markt-search-wrap" id="marktSearchWrap">
-    <div class="markt-search-box">
-      <svg viewBox="0 0 24 24" class="markt-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="marktSearchInput" class="markt-search-input" placeholder="Zoek ticker… bijv. AAPL, MSFT, BTC/USD" autocomplete="off" autocorrect="off" spellcheck="false">
-      <button id="marktSearchBtn" class="markt-search-submit">Zoek</button>
-    </div>
-    <div class="markt-search-error" id="marktSearchError" style="display:none"></div>
-  </div>
-
-  <div class="markt-ticker-list" id="marktTickerList"></div>
-
-  <!-- Detail panel -->
-  <div class="markt-detail" id="marktDetail" style="display:none">
-    <div class="markt-detail-header">
-      <button class="markt-back-btn" id="marktBackBtn">
-        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-        Terug
-      </button>
-      <button class="markt-watchlist-btn" id="marktWatchlistBtn"></button>
-    </div>
-    <div class="markt-detail-hero">
-      <div>
-        <div class="markt-detail-name" id="marktDetailName"></div>
-        <div class="markt-detail-symbol" id="marktDetailSymbol"></div>
-      </div>
-      <div class="markt-detail-price-wrap">
-        <div class="markt-detail-price" id="marktDetailPrice"></div>
-        <div class="markt-detail-change" id="marktDetailChange"></div>
-      </div>
-    </div>
-    <div class="markt-period-row" id="marktPeriodRow">
-      <button class="markt-period active" data-period="1day">1D</button>
-      <button class="markt-period" data-period="1month">1M</button>
-      <button class="markt-period" data-period="6month">6M</button>
-      <button class="markt-period" data-period="1year">1J</button>
-      <button class="markt-period" data-period="custom">Eigen</button>
-    </div>
-    <div class="markt-custom-dates" id="marktCustomDates" style="display:none">
-      <input type="date" id="marktDateFrom" class="markt-date-input">
-      <span class="markt-date-sep">→</span>
-      <input type="date" id="marktDateTo" class="markt-date-input">
-      <button class="markt-date-apply" id="marktDateApply">Toon</button>
-    </div>
-    <div class="markt-chart-wrap">
-      <div id="marktTVWidget"></div>
-    </div>
-    <div class="markt-stats-row" id="marktStatsRow"></div>
-  </div>
-</div>
 
 <!-- ── OPGESLAGEN PANEL ── -->
 <div id="opgeslagenPanel" class="opgeslagen-panel"></div>
@@ -965,198 +670,116 @@
     <a class="popup-btn" id="popupBtn" href="#" target="_blank" rel="noopener">Lees artikel →</a>
   </div>
 </div>
+
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────────
 const RSS2JSON_BASE = 'https://api.rss2json.com/v1/api.json?api_key=goxrkjvrqv2dqaaj0mybmnl0vyjxhqccxlh906cv&count=100&rss_url=';
 
-// Sources with translate flag for non-Dutch outlets
 const SOURCES = [
-  { id:'detijd',     name:'De Tijd',      region:'be', translate:false, urls:[
-      'https://www.tijd.be/rss/top_stories.xml',
+  { id:'detijd',     name:'De Tijd',      region:'be', urls:[
+      'https://www.tijd.be/rss/nieuws.xml',
       'https://www.tijd.be/rss/politiek.xml',
-      'https://www.tijd.be/rss/opinie.xml',
       'https://www.tijd.be/rss/ondernemen.xml'
   ]},
-  { id:'standaard',  name:'De Standaard', region:'be', translate:false, urls:[
+  { id:'standaard',  name:'De Standaard', region:'be', urls:[
       'https://www.standaard.be/binnenland/rss/',
       'https://www.standaard.be/buitenland/rss/',
       'https://www.standaard.be/economie/rss/',
       'https://www.standaard.be/economie/beurs/rss/',
       'https://www.standaard.be/opinies/rss/'
   ]},
-  { id:'hln',        name:'HLN',          region:'be', translate:false, urls:['https://www.hln.be/home/rss.xml'] }
+  { id:'hln',        name:'HLN',          region:'be', urls:['https://www.hln.be/home/rss.xml'] }
 ];
 
-// ── CATEGORISATION ────────────────────────────────────────────────────────────
-// Priority order: sport (filter) → onrust → politiek → economie → overig
-// Each word/phrase is matched as substring of lowercased "title + description"
+// ── CATEGORISATIE PER BRON ────────────────────────────────────────────────────
 
-const CAT_RULES = [
-
-  // SPORT — filtered out entirely
-  { cat: 'sport', words: [
-    // Dutch
-    'voetbal','wielrennen','tennis','basketbal','zwemmen','atletiek','turnen',
-    'handbal','volleybal','hockey','cricket','rugby','golf','schaken','boksen',
-    'sprintster','loper ','loopster','renner ','rensters',
-    'doelpunt','owngoal','strafschop','penaltyschop','scheidsrechter','gele kaart','rode kaart',
-    'transfermarkt','transfersom','transferwindow','speeldag','speelronde',
-    'kampioenschap','titelstrijd','degradatie','promotie','play-off','playoff',
-    'competitiestart','competitiefinale','matchdag','thuiswedstrijd','uitwedstrijd',
-    'coach ontslagen','trainer ontslagen','nieuwe coach','nieuwe trainer',
-    'opgave','dopingzaak','dopingtest','dopingschorsing',
-    // Clubs & competitions NL/BE
-    'club brugge','anderlecht','gent','antwerp fc','standard luik','genk','cercle','westerlo',
-    'jupiler pro league','beker van belgie','eerste klasse',
-    'ajax','psv','feyenoord','az alkmaar','eredivisie','knvb',
-    // Clubs & competitions EN/INT
-    'premier league','championship','la liga','bundesliga','serie a','ligue 1','eredivisie',
-    'champions league','europa league','conference league','world cup','euro 2024','euro 2025','euro 2026',
-    'nba','nfl','nhl','mlb','mls','ufc','formula 1',' f1 ','motogp','nascar',
-    'tour de france','giro d\'italia','vuelta','paris-roubaix','ronde van vlaanderen',
-    'wimbledon','roland garros','us open','australian open','davis cup',
-    'olympics','paralympics','olympic games',
-    'transfer fee','transfer window','signed a','signs for','joins ','loan deal',
-    'hat-trick','penalty shootout','red card','yellow card','own goal',
-    'match preview','match report','final score','full time','half time',
-    'standings','table','fixtures','squad','lineup','starting xi',
-    // Common sport names EN
-    'football','soccer','basketball','swimming','cycling','athletics','gymnastics',
-    'volleyball','handball','baseball','boxing','wrestling','skiing','snowboard',
-    'surfing','rowing','sailing','equestrian','fencing','shooting sport','archery',
-    // People/roles often in sport context
-    'quarterback','goalkeeper','midfielder','striker','defender','winger',
-    'manager sacked','manager appointed','head coach','assistant coach',
-  ]},
-
-  // ONRUST → valt terug op buitenland als Groq niet beschikbaar is
-  { cat: 'buitenland', words: [
-    // NL
-    'oorlog','bezetting','invasie','aanval','luchtaanval','raketaanval','bombardement',
-    'aanslag','terrorisme','terrorist','jihadist','extremist',
-    'explosie','ontploffing','bom','bomaanslag','schietpartij','schutter','gijzeling',
-    'moord','doodslag','dode','doden','gewonde','gewonden','slachtoffers',
-    'protest','betoging','rellen','oproer','opstand','coup','staatsgreep',
-    'vluchtelingen','migranten','asielzoekers','mensensmokkel','bootmigranten',
-    'brand','bosbrand','vuurzee','overstroming','aardbeving','tsunami','tornado','orkaan','tyfoon',
-    'epidemie','pandemie','uitbraak','besmetting',
-    'arrest','gearresteerd','aangehouden','veroordeeld','gevangenis','gevangenschap',
-    'crisis','noodtoestand','evacuatie','ramp','catastrofe',
-    'blokkade','belegering','bezet gebied','frontlinie','gevechtslinie',
-    'sancties','wapenlevering','wapenstilstand','staakt-het-vuren','vredesakkoord','onderhandelingen',
-    'genocide','oorlogsmisdaden','misdaden tegen de menselijkheid',
-    // EN
-    'war','warfare','military operation','ground offensive','airstrike','missile strike',
-    'attack','terrorist attack','suicide bomber','car bomb','ied',
-    'shooting','gunman','hostage','kidnapping','assassination','murder','killed','dead','wounded','casualties',
-    'protest','riot','uprising','coup','revolution','civil war','insurgency',
-    'refugee','migrant','asylum seeker','smuggling','boat people',
-    'wildfire','flood','earthquake','tsunami','hurricane','typhoon','cyclone','tornado','drought','famine',
-    'outbreak','epidemic','pandemic','disease','virus','contamination',
-    'arrested','detained','sentenced','prison','jail','convicted',
-    'emergency','evacuation','disaster','catastrophe','crisis',
-    'sanctions','arms','ceasefire','peace talks','war crimes',
-    // Conflict zones (context-free proper nouns)
-    'gaza','westelijke jordaanoever','west bank','israel','palestin','hamas','hezbollah',
-    'oekraïne','ukraine','russia','kremlin','putin','zelensky','donbas','mariupol','kherson','zaporizja',
-    'syrië','syria','jemen','yemen','soedan','sudan','myanmar','mali','sahel',
-    'iran','north korea','taiwan','south china sea',
-    'isis','daesh','al-qaeda','al-shabaab','boko haram','wagner',
-  ]},
-
-  // POLITIEK — governance, elections, diplomacy, law
-  { cat: 'politiek', words: [
-    // NL
-    'verkiezingen','verkiezing','stemmen','kiesdrempel','kieskring','stembureau',
-    'parlement','kamer','senaat','volksvertegenwoordiger','kamerlid','fractieleider',
-    'regering','coalitie','oppositie','premier','minister','staatssecretaris',
-    'partij','politicus','politica','politici','politieke partij',
-    'beleid','wet','wetgeving','decreet','koninklijk besluit','grondwet',
-    'debat','motie','stemming','parlementaire','begrotingsdebat',
-    'gemeenteraad','provincieraad','burgemeester','schepen','gouverneur',
-    'referendum','volksraadpleging','petitie',
-    'diplomatiek','ambassade','ambassadeur','consul','bilateraal','multilateraal',
-    'top','eu-top','g7','g20','vn-veiligheidsraad','navo-top',
-    'kandidaat','kandidatuur','lijsttrekker','partijvoorzitter','partijleider',
-    'buitenlands beleid','binnenlands beleid','staatshoofd',
-    'koning','koningin','kroonprins','monarchie','republiek',
-    'grondwettelijk hof','raad van state','europees hof',
-    // EN
-    'election','vote','ballot','polling','voter','constituency','primary','caucus',
-    'parliament','congress','senate','house of representatives','assembly',
-    'government','coalition','opposition','prime minister','president','chancellor',
-    'minister','secretary of state','secretary-general','commissioner',
-    'policy','legislation','bill','law','regulation','decree','constitution',
-    'debate','motion','filibuster','veto','executive order',
-    'mayor','governor','premier','council',
-    'referendum','initiative','petition',
-    'diplomatic','embassy','ambassador','bilateral','multilateral','foreign policy',
-    'summit','g7','g20','un security council','nato','eu council','european council',
-    'candidate','nomination','campaign','party leader','party chairman',
-    'democrat','republican','conservative','labour','liberal','socialist','green party',
-    'trump','biden','harris','clinton','obama','modi','xi jinping','macron',
-    'scholz','meloni','sunak','starmer','trudeau','erdogan','netanyahu','zelensky',
-    'white house','capitol','downing street','elysee','kremlin','bundestag','riksdag',
-    'supreme court','constitutional court','ruling','verdict','judiciary',
-    'impeachment','resignation','scandal','corruption','lobbying','electoral fraud',
-    'nato','un ','united nations','european union','eu ','imf ','world bank','wto',
-  ]},
-
-  // ECONOMIE — markets, business, trade, labour
-  { cat: 'economie', words: [
-    // NL
-    'economie','economisch','bbp','groei','recessie','inflatie','deflatie','stagflatie',
-    'beurs','aandelen','beurskoers','belegger','belegging','obligaties','dividenden',
-    'bank','centrale bank','rente','rentevoet','renteverhoging','renteverlaging',
-    'ecb','europese centrale bank','nationale bank','imf','wereldbank',
-    'handel','handelsbalans','handelsoorlog','importtarief','exporttarief','douanetarief',
-    'bedrijf','onderneming','multinational','startup','faillissement','overname','fusie',
-    'werkloosheid','werkgelegenheid','jobs','ontslag','herstructurering','sluiting',
-    'loon','salaris','minimumloon','loonsverhoging','loonakkoord','indexering',
-    'begroting','overheidsschuld','tekort','overschot','belasting','btw',
-    'energie','energieprijzen','gasprijs','electriciteitsprijs','olieprijzen',
-    'crypto','bitcoin','blockchain',
-    'vastgoed','huizenprijzen','huurprijzen','woningmarkt',
-    'consumentenprijzen','koopkracht','levensstandaard',
-    // EN
-    'economy','economic','gdp','growth','recession','inflation','deflation',
-    'stock market','stocks','shares','equity','bonds','dividend','investor','investment',
-    'interest rate','rate hike','rate cut','monetary policy','quantitative easing',
-    'federal reserve','fed ','ecb ','imf ','world bank','central bank',
-    'trade','trade war','tariff','tariffs','import duty','export','supply chain',
-    'company','corporation','firm','conglomerate','startup','bankruptcy','acquisition','merger','ipo',
-    'unemployment','jobs report','layoffs','hiring','restructuring','factory closure',
-    'wages','salary','minimum wage','pay rise','strike','union','collective bargaining',
-    'budget','deficit','debt','surplus','tax','vat','fiscal','spending',
-    'energy prices','oil price','gas price','electricity','renewables',
-    'crypto','bitcoin','ethereum','blockchain','nft',
-    'housing market','property prices','real estate','mortgage',
-    'consumer prices','purchasing power','cost of living','retail sales',
-    'earnings','revenue','profit','loss','quarterly results','annual report',
-    'amazon','apple','google','microsoft','meta ','tesla','nvidia','samsung','alibaba',
-    'dow jones','s&p 500','nasdaq','ftse','dax','cac 40','aex',
-    'dollar','euro','pound','yen','yuan','exchange rate','currency',
-    'oil','opec','natural gas','lng','coal','nuclear','solar','wind energy',
-  ]},
-];
-
-function articleLink(art) {
-  return art.link;
+// HLN: URL-gebaseerd
+function categoriseHLN(url) {
+  if (!url) return 'verwijder';
+  const u = url.toLowerCase();
+  if (/hln\.be\/buitenlands-voetbal/.test(u)) return 'verwijder';
+  if (/hln\.be\/binnenland/.test(u)) return 'binnenland';
+  if (/hln\.be\/buitenland/.test(u)) return 'buitenland';
+  if (/hln\.be\/(economie|geld|tech|wetenschap)/.test(u)) return 'economie';
+  if (/hln\.be\/opinie/.test(u)) return 'binnenland';
+  return 'verwijder';
 }
 
-// ── STATE ────────────────────────────────────────────────────────────────────
-let allArticles = [];
-let activeTab    = 'alles';
-let activeSource = 'alle';
+// De Standaard: URL-gebaseerd + politiek via keyword op titel
+function categoriseDeStandaard(feedUrl, articleUrl, title) {
+  if (!articleUrl) return 'verwijder';
+  const u = articleUrl.toLowerCase();
+  const f = (feedUrl || '').toLowerCase();
+
+  if (/standaard\.be\/binnenland/.test(u)) {
+    // Binnenland-feed: check of het politiek is via titel
+    return isPolitiek(title) ? 'politiek' : 'binnenland';
+  }
+  if (/standaard\.be\/buitenland/.test(u)) {
+    return isPolitiek(title) ? 'politiek' : 'buitenland';
+  }
+  if (/standaard\.be\/economie/.test(u)) return 'economie';
+  if (/standaard\.be\/opinies/.test(u)) {
+    return isPolitiek(title) ? 'politiek' : 'binnenland';
+  }
+  return 'verwijder';
+}
+
+// De Tijd: Feed-URL-gebaseerd
+function categoriseDeTijd(feedUrl, title) {
+  const f = (feedUrl || '').toLowerCase();
+  if (/politiek/.test(f)) return 'politiek';
+  if (/ondernemen/.test(f)) return 'economie';
+  if (/nieuws/.test(f)) {
+    // nieuws.xml bevat mix: check politiek via titel
+    return isPolitiek(title) ? 'politiek' : 'binnenland';
+  }
+  return 'verwijder';
+}
+
+// Politiek keyword check op titel
+function isPolitiek(title) {
+  const txt = (title || '').toLowerCase();
+  const POLITIEK_WORDS = [
+    'verkiezing','verkiezingen','stemmen','kiesdrempel','kieskring',
+    'parlement','kamer','senaat','volksvertegenwoordiger','kamerlid','fractieleider',
+    'regering','coalitie','oppositie','premier','minister','staatssecretaris',
+    'partij','politicus','politica','politici',
+    'beleid','wet ','wetgeving','decreet','grondwet',
+    'debat','motie','begroting','begrotingsdebat',
+    'gemeenteraad','burgemeester','schepen','gouverneur',
+    'referendum','volksraadpleging',
+    'diplomatiek','ambassade','ambassadeur','bilateraal','multilateraal',
+    'eu-top','g7','g20','navo',
+    'kandidaat','lijsttrekker','partijvoorzitter','partijleider',
+    'buitenlands beleid','staatshoofd',
+    'n-va','vlaams belang','cd&v','open vld','vooruit','ps ','mr ','pvda','ecolo','groen',
+    'trump','biden','macron','scholz','meloni','zelensky','netanyahu','putin',
+    'europese commissie','europees parlement','raad van europa',
+    'veiligheidsraad','navo-top','eu-beleid',
+    'presidentieel','presidentsverkiezing',
+    'coalition','opposition','prime minister','president','chancellor',
+    'election','vote','ballot','parliament','congress','senate',
+    'policy','legislation','bill ','decree','constitution',
+    'summit','diplomatic','sanction',
+  ];
+  return POLITIEK_WORDS.some(w => txt.includes(w));
+}
 
 // ── UTILS ────────────────────────────────────────────────────────────────────
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function decodeEntities(str) {
+  try {
+    const doc = new DOMParser().parseFromString(str, 'text/html');
+    return doc.documentElement.textContent;
+  } catch { return str; }
+}
 
 function formatDate() {
   return new Date().toLocaleDateString('nl-BE',{weekday:'long',day:'numeric',month:'long'});
 }
 
-// ── SET HEADER DATE ───────────────────────────────────────────────────────────
 (function() {
   const el = document.getElementById('headerDate');
   if (el) {
@@ -1177,56 +800,14 @@ function timeAgo(ds) {
   } catch { return ''; }
 }
 
-// ── HLN URL-BASED CATEGORISATION ─────────────────────────────────────────────
-// Returns: category string, 'verwijder' (filter out), or null (no match)
-function categoriseHLN(url) {
-  if (!url) return null;
-  const u = url.toLowerCase();
-
-  // Enkel deze urls worden geaccepteerd, alle andere worden verwijderd
-  if (/hln\.be\/binnenland/.test(u)) return 'binnenland';
-  if (/hln\.be\/buitenlands-voetbal/.test(u)) return 'verwijder';
-  if (/hln\.be\/buitenland/.test(u)) return 'buitenland';
-  if (/hln\.be\/(economie|geld|tech|wetenschap)/.test(u)) return 'economie';
-  if (/hln\.be\/opinie/.test(u)) return 'opinie';
-
-  return 'verwijder';
-}
-
-function categoriseDeTijd(url) {
-  if (!url) return null;
-  const u = url.toLowerCase();
-
-  if (/tijd\.be\/rss\/politiek/.test(u)) return 'politiek';
-  if (/tijd\.be\/rss\/ondernemen/.test(u)) return 'economie';
-  if (/tijd\.be\/rss\/nieuws/.test(u)) return 'binnenland';
-  if (/tijd\.be\/rss\/ondernemen/.test(u)) return 'binnenland';
-  return 'verwijder';
-}
-
-function categoriseDeStandaard(url) {
-  if (!url) return null;
-  const u = url.toLowerCase();
-
-  if (/standaard\.be\/binnenland/.test(u)) return 'binnenland';
-  if (/standaard\.be\/buitenland/.test(u)) return 'buitenland';
-  if (/standaard\.be\/economie/.test(u)) return 'economie';
-  if (/standaard\.be\/opinies/.test(u)) return 'binnenland';
-  return 'verwijder';
-}
-
-
-function categorise(title) {
-  const txt = title.toLowerCase();
-  for (const rule of CAT_RULES) {
-    if (rule.words.some(w => txt.includes(w))) return rule.cat;
-  }
-  return 'overig';
-}
-
 // ── LABELS ───────────────────────────────────────────────────────────────────
 const RL = { be:['label-be','🇧🇪'], eu:['label-eu','🇪🇺'], world:['label-world','🌍'] };
-const CL = { politiek:['label-politiek','Politiek'], economie:['label-economie','Economie'], binnenland:['label-binnenland','Binnenland'], buitenland:['label-buitenland','Buitenland'] };
+const CL = {
+  politiek:   ['label-politiek','Politiek'],
+  economie:   ['label-economie','Economie'],
+  binnenland: ['label-binnenland','Binnenland'],
+  buitenland: ['label-buitenland','Buitenland']
+};
 const rLabel = r => { const [c,t]=RL[r]||['','']; return t?`<span class="label ${c}">${t}</span>`:''; };
 const cLabel = c => { const [cl,t]=CL[c]||['','']; return t?`<span class="label ${cl}">${t}</span>`:''; };
 
@@ -1240,17 +821,14 @@ function tickProgress() {
   if (_done >= _total) setTimeout(()=>{ bar.style.width='0%'; }, 700);
 }
 
-// ── FETCH ONE FEED ────────────────────────────────────────────────────────────
-function decodeEntities(str) {
-  // DOMParser is de meest betrouwbare manier om HTML-entities te decoderen
-  try {
-    const doc = new DOMParser().parseFromString(str, 'text/html');
-    return doc.documentElement.textContent;
-  } catch { return str; }
-}
+// ── STATE ────────────────────────────────────────────────────────────────────
+let allArticles = [];
+let activeTab    = 'alles';
+let activeSource = 'alle';
 
-async function fetchFeed(url, meta) {
-  const api = RSS2JSON_BASE + encodeURIComponent(url);
+// ── FETCH ONE FEED ────────────────────────────────────────────────────────────
+async function fetchFeed(feedUrl, meta) {
+  const api = RSS2JSON_BASE + encodeURIComponent(feedUrl);
   const res  = await fetch(api, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -1266,146 +844,26 @@ async function fetchFeed(url, meta) {
 
     let cat;
     if (meta.id === 'hln') {
-      const hlnCat = categoriseHLN(link);
-      if (hlnCat === 'verwijder') return null;
-      cat = hlnCat;
+      cat = categoriseHLN(link);
+      if (cat === 'verwijder') return null;
     } else if (meta.id === 'detijd') {
-      const detijdCat = categoriseDeTijd(link);
-      if (detijdCat === 'verwijder') return null;
-      cat = detijdCat;
+      cat = categoriseDeTijd(feedUrl, title);
+      if (cat === 'verwijder') return null;
     } else if (meta.id === 'standaard') {
-      const standaardCat = categoriseDeStandaard(link);
-      if (standaardCat === 'verwijder') return null;
-      cat = standaardCat;
+      cat = categoriseDeStandaard(feedUrl, link, title);
+      if (cat === 'verwijder') return null;
     } else {
-      cat = categorise(title);
+      cat = 'overig';
     }
 
-    return { title, link, pubDate, image, cat, desc, source: meta };
-  }).filter(a => a && a.title && a.link && a.cat !== 'sport');
-}
-
-// ── GEMINI CATEGORISATIE ─────────────────────────────────────────────────────
-const GROQ_URL = '/api/groq'; // API key zit veilig in Vercel environment variable
-const GEMINI_CATS = ['binnenland','buitenland','politiek','economie','overig'];
-const GEMINI_CACHE_KEY = 'debrief_groq_cache';
-const GEMINI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 uur in ms
-
-function cacheKey(title) {
-  return title.trim().toLowerCase();
-}
-
-function geminiCacheGet(title) {
-  try {
-    const raw = localStorage.getItem(GEMINI_CACHE_KEY);
-    if (!raw) return null;
-    const cache = JSON.parse(raw);
-    const entry = cache[cacheKey(title)];
-    if (!entry) return null;
-    if (Date.now() - entry.ts > GEMINI_CACHE_TTL) return null;
-    return entry.data || null;
-  } catch { return null; }
-}
-
-function geminiCacheSet(entries) {
-  // entries = [{ title, data: { cat, nl? } }]
-  try {
-    const raw = localStorage.getItem(GEMINI_CACHE_KEY);
-    const cache = raw ? JSON.parse(raw) : {};
-    const now = Date.now();
-    for (const k of Object.keys(cache)) {
-      if (now - cache[k].ts > GEMINI_CACHE_TTL) delete cache[k];
-    }
-    for (const { title, data } of entries) {
-      cache[cacheKey(title)] = { data, ts: now };
-    }
-    localStorage.setItem(GEMINI_CACHE_KEY, JSON.stringify(cache));
-  } catch {}
-}
-
-const GROQ_BATCH_SIZE = 20; // Groq free tier: max tokens per request
-
-async function groqBatch(batch) {
-  // Stuurt één batch naar Groq en geeft { catMap, titleMap } terug voor die batch
-  const inputJson = JSON.stringify(batch.map(a => ({ i: a.index, t: a.title, tr: a.translate })));
-  const prompt = `Je krijgt een lijst nieuwsartikels. Voor elk artikel:
-1. Kies een categorie uit: binnenland, buitenland, politiek, economie, overig
-   - binnenland: nieuws over België intern
-   - buitenland: internationaal nieuws, buitenlandse gebeurtenissen
-   - politiek: politiek, verkiezingen, beleid, regeringen
-   - economie: economie, financiën, bedrijven, markten, tech, wetenschap
-   - overig: alles wat niet past (opinie, cultuur, sport, enz.)
-2. Als "tr" true is: vertaal de titel naar natuurlijk Nederlands. Als "tr" false is: laat "nl" weg.
-
-Geef ALLEEN een JSON-object terug, geen uitleg, geen markdown.
-Formaat: {"0":{"cat":"categorie","nl":"vertaling"},"1":{"cat":"categorie"},...}
-De sleutels zijn de "i"-waarden.
-
-Artikels: ${inputJson}`;
-
-  const res = await fetch(GROQ_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0,
-      messages: [{ role: 'user', content: prompt }]
-    }),
-    signal: AbortSignal.timeout(30000)
-  });
-  if (!res.ok) throw new Error(`Groq HTTP ${res.status}`);
-  const data = await res.json();
-  const text  = data.choices?.[0]?.message?.content || '{}';
-  const clean = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
-}
-
-async function groqProcess(articles) {
-  if (!articles.length) return { catMap: {}, titleMap: {} };
-
-  const catMap = {}, titleMap = {};
-  const uncached = [];
-  for (const a of articles) {
-    const hit = geminiCacheGet(a.title);
-    if (hit !== null) {
-      catMap[String(a.index)] = hit.cat;
-      if (hit.nl) titleMap[String(a.index)] = hit.nl;
-    } else {
-      uncached.push(a);
-    }
-  }
-
-  if (!uncached.length) return { catMap, titleMap };
-
-  // Splits in batches van GROQ_BATCH_SIZE om 429s te vermijden
-  for (let i = 0; i < uncached.length; i += GROQ_BATCH_SIZE) {
-    const batch = uncached.slice(i, i + GROQ_BATCH_SIZE);
-    try {
-      const parsed  = await groqBatch(batch);
-      const toCache = [];
-      for (const a of batch) {
-        const entry = parsed[String(a.index)] || {};
-        const cat   = GEMINI_CATS.includes((entry.cat || '').toLowerCase())
-          ? entry.cat.toLowerCase() : 'overig';
-        catMap[String(a.index)] = cat;
-        if (a.translate && entry.nl) titleMap[String(a.index)] = entry.nl;
-        toCache.push({ title: a.title, data: { cat, nl: entry.nl || null } });
-      }
-      geminiCacheSet(toCache);
-    } catch (e) {
-      // Bij fout in een batch: categoriseer de batch als 'overig' en ga verder
-      console.warn(`Groq batch ${i}–${i + batch.length} mislukt:`, e.message);
-      for (const a of batch) catMap[String(a.index)] = 'overig';
-    }
-  }
-
-  return { catMap, titleMap };
+    return { title, link, pubDate, image, cat, desc, source: { name: meta.name, region: meta.region, id: meta.id } };
+  }).filter(Boolean);
 }
 
 // ── LOAD ALL ──────────────────────────────────────────────────────────────────
 async function loadAll() {
   const tasks = SOURCES.flatMap(src =>
-    src.urls.map(url => ({ url, meta: { name:src.name, region:src.region, id:src.id } }))
+    src.urls.map(url => ({ url, meta: src }))
   );
   _done = 0; _total = tasks.length;
   bar.style.width = '0%';
@@ -1420,26 +878,6 @@ async function loadAll() {
   );
 
   let arts = settled.flatMap(r => r.status==='fulfilled' ? r.value : []);
-
-  // Groq is niet meer nodig: alle sources (De Tijd, De Standaard, HLN) zijn Nederlands met URL-gebaseerde categorisatie
-  const groqArts = [];
-
-  if (groqArts.length) {
-    try {
-      const { catMap, titleMap } = await groqProcess(groqArts);
-      groqArts.forEach(a => {
-        if (catMap[String(a.index)] !== undefined)
-          arts[a.index].cat = catMap[String(a.index)];
-        if (titleMap[String(a.index)])
-          arts[a.index].title = titleMap[String(a.index)];
-      });
-    } catch(e) {
-      errors.push(`Groq: ${e.message}`);
-    }
-  }
-
-  // Verwijder sport-artikelen (Groq kent geen 'sport', die komen enkel uit keyword-filter)
-  arts = arts.filter(a => a.cat !== 'sport');
 
   const recent = arts.filter(a => {
     if (!a.pubDate) return false;
@@ -1475,11 +913,11 @@ function render(errors=[]) {
 
   if (errors.length) {
     const names = [...new Set(errors.map(e=>e.split(':')[0]))].join(', ');
-    html += `<div class="error-banner">\u26a0\ufe0f Sommige feeds konden niet worden geladen: <strong>${names}</strong></div>`;
+    html += `<div class="error-banner">⚠️ Sommige feeds konden niet worden geladen: <strong>${names}</strong></div>`;
   }
 
   if (!arts.length) {
-    html += `<div class="empty-state"><span class="icon">\u{1F4EB}</span><p>Geen artikels voor<br>deze selectie vandaag.</p></div>`;
+    html += `<div class="empty-state"><span class="icon">📭</span><p>Geen artikels voor<br>deze selectie vandaag.</p></div>`;
     container.innerHTML = html; return;
   }
 
@@ -1487,7 +925,6 @@ function render(errors=[]) {
   const topIdx = allArticles.indexOf(top);
   const topSeen = isSeen(top, seenMap);
 
-  // Top story — full image with category pill overlay
   const topCatLabel = CL[top.cat] ? CL[top.cat][1] : '';
   html += `<div class="top-story${topSeen ? ' seen' : ''}" data-idx="${topIdx}" style="cursor:pointer">`;
   if (top.image) {
@@ -1513,6 +950,7 @@ function render(errors=[]) {
   for (const art of rest) {
     const idx = allArticles.indexOf(art);
     const seen = isSeen(art, seenMap);
+    const saved = bmHas(art);
     html += `<div class="article-card${seen ? ' seen' : ''}" data-idx="${idx}" style="cursor:pointer">`;
     if (art.image) {
       html += `<img class="article-card-img" src="${esc(art.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'article-card-placeholder'}))">`;
@@ -1521,7 +959,6 @@ function render(errors=[]) {
     }
     html += `<div class="article-card-body">`;
     html += `<h3>${esc(art.title)}</h3>`;
-    const saved = bmHas(art);
     html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span><button class="bm-btn${saved ? ' saved' : ''}" data-bm-idx="${idx}" aria-label="${saved ? 'Verwijder bladwijzer' : 'Bewaar artikel'}">${bmIconHTML(saved)}</button></div>`;
     html += `</div></div>`;
   }
@@ -1531,13 +968,12 @@ function render(errors=[]) {
 
 // ── LEESVOORTGANG ─────────────────────────────────────────────────────────────
 const SEEN_KEY = 'debrief_seen_v1';
-const SEEN_TTL = 7 * 24 * 60 * 60 * 1000; // 7 dagen
+const SEEN_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function seenLoad() {
   try {
     const raw = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}');
     const now = Date.now();
-    // Verwijder entries ouder dan 7 dagen
     for (const k of Object.keys(raw)) if (now - raw[k] > SEEN_TTL) delete raw[k];
     return raw;
   } catch { return {}; }
@@ -1549,12 +985,8 @@ function seenMark(key) {
     localStorage.setItem(SEEN_KEY, JSON.stringify(raw));
   } catch {}
 }
-function seenKey(art) {
-  return art.link.slice(-60); // laatste deel van URL als stabiele sleutel
-}
-function isSeen(art, seenMap) {
-  return !!seenMap[seenKey(art)];
-}
+function seenKey(art) { return art.link.slice(-60); }
+function isSeen(art, seenMap) { return !!seenMap[seenKey(art)]; }
 
 // ── BLADWIJZERS ───────────────────────────────────────────────────────────────
 const BMARK_KEY = 'debrief_bookmarks_v1';
@@ -1573,7 +1005,7 @@ function bmToggle(art) {
       source: art.source, pubDate: art.pubDate, cat: art.cat, savedAt: Date.now() });
   }
   try { localStorage.setItem(BMARK_KEY, JSON.stringify(list)); } catch {}
-  return idx < 0; // true = toegevoegd, false = verwijderd
+  return idx < 0;
 }
 
 function bmIconHTML(saved) {
@@ -1592,14 +1024,13 @@ function renderOpgeslagen() {
   }
   let html = `<div class="section-head"><h3>Opgeslagen</h3><span class="count-chip">${list.length}</span></div>`;
   for (const art of list) {
-    const saved = true;
     html += `<div class="article-card" data-bm-link="${esc(art.link)}" style="cursor:pointer">`;
     if (art.image) {
       html += `<img class="article-card-img" src="${esc(art.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'article-card-placeholder'}))">`;
     } else {
       html += `<div class="article-card-placeholder"></div>`;
     }
-    html += `<div class="article-card-body" style="position:relative">`;
+    html += `<div class="article-card-body">`;
     html += `<h3>${esc(art.title)}</h3>`;
     html += `<div class="meta-row">${cLabel(art.cat)}<span class="source-time">${esc(art.source.name)} · ${timeAgo(art.pubDate)}</span><button class="bm-btn saved" data-bm-link="${esc(art.link)}" aria-label="Verwijder bladwijzer">${bmIconHTML(true)}</button></div>`;
     html += `</div></div>`;
@@ -1607,21 +1038,15 @@ function renderOpgeslagen() {
   panel.innerHTML = html;
 }
 
-
 // ── INIT ──────────────────────────────────────────────────────────────────────
-const dateBadgeEl = document.getElementById('dateBadge');
-if (dateBadgeEl) dateBadgeEl.textContent = formatDate();
-
 async function init() {
   document.getElementById('feedContainer').innerHTML = `
-    <div class="status-screen"><div class="spinner"></div><div class="load-msg">Nieuws ophalen\u2026</div></div>`;
-
+    <div class="status-screen"><div class="spinner"></div><div class="load-msg">Nieuws ophalen…</div></div>`;
   const errors = await loadAll();
-
   if (!allArticles.length) {
     document.getElementById('feedContainer').innerHTML = `
       <div class="status-screen">
-        <div style="font-size:36px">\u26a0\ufe0f</div>
+        <div style="font-size:36px">⚠️</div>
         <div class="load-msg">Kon geen artikels laden.<br>Controleer je verbinding.</div>
       </div>`;
     return;
@@ -1631,7 +1056,6 @@ async function init() {
 
 // ── EVENTS ────────────────────────────────────────────────────────────────────
 document.getElementById('feedContainer').addEventListener('click', e => {
-  // Bookmark knop — intercept vóór kaart-klik
   const bmBtn = e.target.closest('.bm-btn[data-bm-idx]');
   if (bmBtn) {
     e.stopPropagation();
@@ -1651,12 +1075,9 @@ document.getElementById('feedContainer').addEventListener('click', e => {
   if (art) openPopup(art);
 });
 
-// Scroll to top bij klik op header
 document.getElementById('headerBar').addEventListener('click', () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
-
-
 
 document.getElementById('sourceRow').addEventListener('click', e => {
   const c = e.target.closest('.source-chip'); if (!c) return;
@@ -1674,11 +1095,7 @@ const ptrText      = document.getElementById('ptrText');
 const THRESHOLD    = 80;
 
 document.addEventListener('touchstart', e => {
-  if (window.scrollY === 0) {
-    ptrStartY = e.touches[0].clientY;
-    ptrActive = true;
-    ptrTriggered = false;
-  }
+  if (window.scrollY === 0) { ptrStartY = e.touches[0].clientY; ptrActive = true; ptrTriggered = false; }
 }, { passive: true });
 
 document.addEventListener('touchmove', e => {
@@ -1686,13 +1103,8 @@ document.addEventListener('touchmove', e => {
   const dist = e.touches[0].clientY - ptrStartY;
   if (dist > 10) {
     ptrIndicator.classList.add('visible');
-    if (dist > THRESHOLD) {
-      ptrText.textContent = 'Loslaten om te verversen';
-      ptrTriggered = true;
-    } else {
-      ptrText.textContent = 'Trek naar beneden om te verversen';
-      ptrTriggered = false;
-    }
+    ptrText.textContent = dist > THRESHOLD ? 'Loslaten om te verversen' : 'Trek naar beneden om te verversen';
+    ptrTriggered = dist > THRESHOLD;
   }
 }, { passive: true });
 
@@ -1700,627 +1112,15 @@ document.addEventListener('touchend', () => {
   if (ptrTriggered) {
     ptrSpinner.classList.add('spinning');
     ptrText.textContent = 'Verversen…';
-    init().then(() => {
-      ptrSpinner.classList.remove('spinning');
-      ptrIndicator.classList.remove('visible');
-    });
+    init().then(() => { ptrSpinner.classList.remove('spinning'); ptrIndicator.classList.remove('visible'); });
   } else {
     ptrIndicator.classList.remove('visible');
   }
-  ptrActive = false;
-  ptrTriggered = false;
-});
-
-init();
-
-// ── POPUP ─────────────────────────────────────────────────────────────────────
-let popupCurrentArt = null;
-
-function openPopup(art) {
-  popupCurrentArt = art;
-  // Markeer als gelezen
-  seenMark(seenKey(art));
-  // Dim de kaart meteen zonder volledige re-render
-  document.querySelectorAll(`[data-idx="${allArticles.indexOf(art)}"]`).forEach(el => {
-    el.classList.add('seen');
-  });
-
-  const desc = art.desc || '';
-  const clean = desc.replace(/<[^>]*>/g, '').trim();
-  document.getElementById('popupTitle').textContent = art.title;
-  document.getElementById('popupDesc').textContent = clean || 'Geen beschrijving beschikbaar.';
-  document.getElementById('popupBtn').href = articleLink(art);
-
-  // Bookmark-knop state
-  const saved = bmHas(art);
-  const popupBm = document.getElementById('popupBmBtn');
-  popupBm.classList.toggle('saved', saved);
-  popupBm.querySelector('.bm-add-icon').style.display = saved ? 'none' : '';
-  popupBm.querySelector('.bm-remove-icon').style.display = saved ? '' : 'none';
-
-  document.getElementById('popupOverlay').classList.add('open');
-  document.getElementById('popupSheet').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closePopup() {
-  document.getElementById('popupOverlay').classList.remove('open');
-  document.getElementById('popupSheet').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-document.getElementById('popupOverlay').addEventListener('click', closePopup);
-document.getElementById('popupSheet').addEventListener('click', e => { e.stopPropagation(); });
-document.getElementById('popupClose').addEventListener('click', e => { e.stopPropagation(); closePopup(); });
-
-// Escape key om te sluiten
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopup(); });
-
-// Swipe-down om te sluiten
-let touchStartY = 0;
-const sheet = document.getElementById('popupSheet');
-sheet.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
-sheet.addEventListener('touchend', e => {
-  if (e.changedTouches[0].clientY - touchStartY > 60) closePopup();
-}, { passive: true });
-
-
-// ══════════════════════════════════════════════════════════════════════════════
-// MARKT TAB — multi-source quotes + TradingView widget
-// ══════════════════════════════════════════════════════════════════════════════
-
-const MARKET_API    = '/api/market';
-const MKT_CACHE_KEY = 'debrief_mkt_v2';
-const MKT_CACHE_TTL = 15 * 60 * 1000;
-const WL_KEY        = 'debrief_watchlist_v2';
-
-const PRESET_TICKERS = [
-  { symbol:'EUR/USD',    src:'EURUSD', tv:'FX:EURUSD',   name:'Euro / US Dollar',       type:'forex', decimals:4, prefix:'',  suffix:''  },
-  { symbol:'XAU/USD',    src:'XAUUSD', tv:'TVC:GOLD',    name:'Goud (troy ounce)',       type:'forex', decimals:2, prefix:'$', suffix:''  },
-  { symbol:'Euro Stoxx 50', src:'SX5E',  tv:'TVC:SX5E',       name:'Euro Stoxx 50 Index', type:'index', decimals:2, prefix:'',  suffix:''  },
-  { symbol:'BNO',        src:'BNO',    tv:'AMEX:BNO',    name:'Brent Oil Fund ETF (BNO)', type:'stock', decimals:2, prefix:'$', suffix:''  },
-  { symbol:'US10Y',      src:'US10Y',  tv:'FRED:DGS10',  name:'US 10-jaar rente',        type:'stock', decimals:3, prefix:'',  suffix:'%' },
-  { symbol:'JPMorgan',   src:'JPM',    tv:'NYSE:JPM',    name:'JPMorgan Chase & Co.',    type:'stock', decimals:2, prefix:'$', suffix:''  },
-  { symbol:'MSCI World', src:'URTH',   tv:'AMEX:URTH',   name:'MSCI World ETF (URTH)',   type:'stock', decimals:2, prefix:'$', suffix:''  },
-];
-
-// Periode → TradingView interval + range
-const TV_RANGE = {
-  '1day':   { interval: '5',  range: '1D'  },
-  '1month': { interval: 'D',  range: '1M'  },
-  '6month': { interval: 'W',  range: '6M'  },
-  '1year':  { interval: 'W',  range: '12M' },
-  'custom': { interval: 'D',  range: null  },
-};
-
-let mktWatchlist     = [];
-let mktCurrentTicker = null;
-let mktCurrentPeriod = '1day';
-let mktInited        = false;
-
-// ── Watchlist ─────────────────────────────────────────────────────────────────
-function wlLoad() {
-  try { mktWatchlist = JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch { mktWatchlist = []; }
-}
-function wlSave()      { try { localStorage.setItem(WL_KEY, JSON.stringify(mktWatchlist)); } catch {} }
-function wlHas(sym)    { return mktWatchlist.some(t => t.symbol === sym); }
-function wlAdd(t)      { if (!wlHas(t.symbol)) { mktWatchlist.push(t); wlSave(); } }
-function wlRemove(sym) { mktWatchlist = mktWatchlist.filter(t => t.symbol !== sym); wlSave(); }
-
-// ── Cache ─────────────────────────────────────────────────────────────────────
-let _mktCache = null;
-
-function mktCacheLoad() {
-  if (_mktCache) return _mktCache;
-  try { _mktCache = JSON.parse(localStorage.getItem(MKT_CACHE_KEY) || '{}'); }
-  catch { _mktCache = {}; }
-  return _mktCache;
-}
-function mktCacheFlush() {
-  try { localStorage.setItem(MKT_CACHE_KEY, JSON.stringify(_mktCache)); } catch {}
-}
-function mktCacheGet(key) {
-  const s = mktCacheLoad();
-  const e = s[key];
-  if (!e || Date.now() - e.ts > MKT_CACHE_TTL) return undefined;
-  return e.data; // kan null zijn (error sentinel) of echte data
-}
-function mktCacheSet(key, data) {
-  const s   = mktCacheLoad();
-  const now = Date.now();
-  for (const k of Object.keys(s)) if (now - s[k].ts > MKT_CACHE_TTL * 8) delete s[k];
-  s[key] = { data, ts: now };
-  mktCacheFlush();
-}
-function mktCacheSetWithTTL(key, data, ttl) {
-  // Sla op met een timestamp die al deels verouderd is zodat de echte TTL korter is
-  const s = mktCacheLoad();
-  s[key] = { data, ts: Date.now() - (MKT_CACHE_TTL - ttl) };
-  mktCacheFlush();
-}
-
-// ── API ───────────────────────────────────────────────────────────────────────
-const MKT_ERROR_TTL = 60 * 1000; // 1 min: hammer-beveiliging bij fouten
-
-async function mktFetch(endpoint, params) {
-  const key    = endpoint + '|' + JSON.stringify(params);
-  const cached = mktCacheGet(key);
-  if (cached !== undefined) {
-    // null = error sentinel (kort gecached), gooi fout zodat UI N/B toont
-    if (cached === null) throw new Error('Tijdelijk niet beschikbaar');
-    return cached;
-  }
-
-  const qs  = new URLSearchParams({ endpoint, ...params }).toString();
-  const res = await fetch(`${MARKET_API}?${qs}`, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    mktCacheSetWithTTL(key, null, MKT_ERROR_TTL);
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  if (data.error) {
-    mktCacheSetWithTTL(key, null, MKT_ERROR_TTL);
-    throw new Error(data.error);
-  }
-  mktCacheSet(key, data);
-  return data;
-}
-
-// ── Formattering ──────────────────────────────────────────────────────────────
-function fmtPrice(val, ticker) {
-  if (val == null) return '—';
-  const n = parseFloat(val);
-  if (isNaN(n) || n === 0) return '—';
-  return (ticker?.prefix || '') +
-    n.toLocaleString('nl-BE', { minimumFractionDigits: ticker?.decimals ?? 2, maximumFractionDigits: ticker?.decimals ?? 2 }) +
-    (ticker?.suffix || '');
-}
-function fmtPct(val) {
-  const n = parseFloat(val);
-  if (isNaN(n)) return '—';
-  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
-}
-function pctClass(val) {
-  const n = parseFloat(val);
-  if (isNaN(n) || n === 0) return 'neu';
-  return n > 0 ? 'pos' : 'neg';
-}
-
-// ── Detail ────────────────────────────────────────────────────────────────────
-async function hydrateAllRows(tickers) {
-  if (!tickers.length) return;
-  await Promise.allSettled(tickers.map(t => hydrateRow(t)));
-}
-
-async function hydrateRow(ticker) {
-  const id       = ticker.symbol.replace(/[^a-zA-Z0-9]/g, '_');
-  const priceEl  = document.getElementById(`mprice-${id}`);
-  const changeEl = document.getElementById(`mchange-${id}`);
-  if (!priceEl) return;
-  try {
-    const q = await mktFetch('quote', { symbol: ticker.src });
-    if (!q.c || q.c === 0) { priceEl.textContent = 'N/B'; return; }
-    priceEl.textContent  = fmtPrice(q.c, ticker);
-    changeEl.textContent = fmtPct(q.dp);
-    changeEl.className   = `markt-ticker-change ${pctClass(q.dp)}`;
-  } catch {
-    priceEl.textContent = 'N/B';
-  }
-}
-
-// ── Eigen aandelen (gezocht via zoekbalk) ─────────────────────────────────────
-const CUSTOM_KEY = 'debrief_custom_tickers_v1';
-
-function customLoad() {
-  try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); } catch { return []; }
-}
-function customSave(list) {
-  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch {}
-}
-function customAdd(ticker) {
-  const list = customLoad();
-  if (!list.find(t => t.symbol === ticker.symbol)) {
-    list.push(ticker);
-    customSave(list);
-  }
-}
-function customRemove(symbol) {
-  customSave(customLoad().filter(t => t.symbol !== symbol));
-}
-
-// ── Lijst ─────────────────────────────────────────────────────────────────────
-function renderTickerRow(ticker, swipeable) {
-  const id = ticker.symbol.replace(/[^a-zA-Z0-9]/g, '_');
-  const inner = `
-    <div class="markt-ticker-row" data-symbol="${ticker.symbol}">
-      <div class="markt-ticker-info">
-        <div class="markt-ticker-symbol">${ticker.symbol}</div>
-        <div class="markt-ticker-name">${ticker.name}</div>
-      </div>
-      <div class="markt-ticker-right">
-        <div class="markt-ticker-price" id="mprice-${id}"><span class="markt-loading-dot"></span></div>
-        <div class="markt-ticker-change neu" id="mchange-${id}">—</div>
-      </div>
-    </div>`;
-
-  if (!swipeable) return inner;
-
-  return `
-    <div class="markt-swipe-wrap" data-swipe-symbol="${ticker.symbol}">
-      ${inner}
-      <div class="markt-swipe-delete" data-delete="${ticker.symbol}">Wis</div>
-    </div>`;
-}
-
-function renderTickerList() {
-  wlLoad();
-  const container  = document.getElementById('marktTickerList');
-  const customList = customLoad();
-
-  let html = '';
-
-  if (customList.length) {
-    html += '<div class="markt-section-label">Eigen aandelen</div>';
-    customList.forEach(t => html += renderTickerRow(t, true));
-  }
-
-  html += '<div class="markt-section-label">Marktoverzicht</div>';
-  PRESET_TICKERS.forEach(t => html += renderTickerRow(t, false));
-
-  container.innerHTML = html;
-  hydrateAllRows([...customList, ...PRESET_TICKERS]);
-  initSwipe();
-}
-
-// ── Swipe to delete ───────────────────────────────────────────────────────────
-let swipeAbortController = null;
-
-function initSwipe() {
-  // Verwijder alle vorige document-listeners van de vorige render
-  if (swipeAbortController) swipeAbortController.abort();
-  swipeAbortController = new AbortController();
-  const { signal } = swipeAbortController;
-
-  document.querySelectorAll('.markt-swipe-wrap').forEach(wrap => {
-    const row     = wrap.querySelector('.markt-ticker-row');
-    const del     = wrap.querySelector('.markt-swipe-delete');
-    const symbol  = wrap.dataset.swipeSymbol;
-    let startX = 0, currentX = 0, swiping = false, revealed = false;
-
-    row.addEventListener('touchstart', e => {
-      startX   = e.touches[0].clientX;
-      currentX = 0;
-      swiping  = true;
-    }, { passive: true });
-
-    row.addEventListener('touchmove', e => {
-      if (!swiping) return;
-      currentX = e.touches[0].clientX - startX;
-      if (currentX > 0) { row.style.transform = 'translateX(0)'; return; }
-      const clamped = Math.max(currentX, -80);
-      row.style.transform = `translateX(${clamped}px)`;
-    }, { passive: true });
-
-    row.addEventListener('touchend', () => {
-      swiping = false;
-      if (currentX < -40) {
-        row.style.transform = 'translateX(-80px)';
-        revealed = true;
-      } else {
-        row.style.transform = 'translateX(0)';
-        revealed = false;
-      }
-    });
-
-    del.addEventListener('click', e => {
-      e.stopPropagation();
-      wrap.style.transition = 'opacity .2s, height .2s';
-      wrap.style.opacity    = '0';
-      wrap.style.height     = wrap.offsetHeight + 'px';
-      requestAnimationFrame(() => { wrap.style.height = '0'; });
-      setTimeout(() => {
-        customRemove(symbol);
-        renderTickerList();
-      }, 220);
-    });
-
-    // Klik ergens anders → sluit swipe
-    document.addEventListener('touchstart', e => {
-      if (revealed && !wrap.contains(e.target)) {
-        row.style.transform = 'translateX(0)';
-        revealed = false;
-      }
-    }, { passive: true, signal });
-  });
-}
-
-// ── Zoeken — via Vercel proxy → TradingView symbol search ────────────────────
-async function mktDoSearch() {
-  const raw   = document.getElementById('marktSearchInput').value.trim();
-  if (!raw) return;
-  const errEl = document.getElementById('marktSearchError');
-  const btn   = document.getElementById('marktSearchBtn');
-  errEl.style.display = 'none';
-  btn.textContent     = '…';
-  btn.disabled        = true;
-
-  try {
-    // Zoek eerst lokaal
-    const upper = raw.toUpperCase();
-    const all   = [...PRESET_TICKERS, ...customLoad()];
-    const local = all.find(t =>
-      t.symbol.toUpperCase() === upper || t.src?.toUpperCase() === upper
-    );
-    if (local) {
-      openDetail(local);
-      return;
-    }
-
-    // Via Vercel proxy → TradingView symbol search
-    const qs  = new URLSearchParams({ endpoint: 'search', q: raw }).toString();
-    const res = await fetch(`${MARKET_API}?${qs}`, { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    const hits = data?.hits || [];
-
-    if (!hits.length) {
-      errEl.textContent   = `"${raw}" niet gevonden.`;
-      errEl.style.display = 'block';
-      return;
-    }
-
-    showSearchResults(hits);
-  } catch (e) {
-    const msg = e.message.toLowerCase().includes('rate limit')
-      ? 'Zoeken tijdelijk niet beschikbaar. Probeer opnieuw.'
-      : 'Zoeken mislukt: ' + e.message;
-    errEl.textContent   = msg;
-    errEl.style.display = 'block';
-  } finally {
-    btn.textContent = 'Zoek';
-    btn.disabled    = false;
-  }
-}
-
-let _searchHits = [];
-
-function showSearchResults(hits) {
-  _searchHits = hits;
-  const container = document.getElementById('marktTickerList');
-  let html = '<div class="markt-section-label">Zoekresultaten</div>';
-
-  hits.forEach((h, i) => {
-    const display = h.description || h.symbol;
-    const exch    = h.exchange || '';
-    html += `
-      <div class="markt-ticker-row markt-search-result" data-hit-index="${i}">
-        <div class="markt-ticker-info">
-          <div class="markt-ticker-symbol">${h.symbol}</div>
-          <div class="markt-ticker-name">${display}</div>
-        </div>
-        <div class="markt-ticker-right">
-          <div class="markt-ticker-change neu" style="font-size:10px;padding:2px 6px">${exch}</div>
-        </div>
-      </div>`;
-  });
-
-  html += `<div style="padding:12px 4px">
-    <button id="marktSearchBack" style="background:none;border:none;color:var(--accent);font-family:var(--font-sans);font-size:13px;font-weight:600;cursor:pointer;padding:0">← Terug</button>
-  </div>`;
-  container.innerHTML = html;
-
-  document.getElementById('marktSearchBack').addEventListener('click', () => {
-    renderTickerList();
-    document.getElementById('marktSearchInput').value = '';
-  });
-
-  container.querySelectorAll('.markt-search-result').forEach(row => {
-    row.addEventListener('click', () => {
-      const h      = _searchHits[parseInt(row.dataset.hitIndex)];
-      const tvSym  = h.full_name || `${h.exchange}:${h.symbol}`;
-      const ticker = {
-        symbol:   h.symbol,
-        src:      h.symbol,
-        tv:       tvSym,
-        name:     h.description || h.symbol,
-        type:     h.type || 'stock',
-        decimals: 2, prefix: '', suffix: '',
-      };
-      customAdd(ticker);
-      document.getElementById('marktSearchInput').value = '';
-      openDetail(ticker);
-    });
-  });
-}
-function showDetailPanel() {
-  document.getElementById('marktTickerList').style.display = 'none';
-  document.getElementById('marktSearchWrap').style.display = 'none';
-  document.getElementById('marktDetail').style.display     = 'block';
-}
-function showListPanel() {
-  document.getElementById('marktDetail').style.display     = 'none';
-  document.getElementById('marktTickerList').style.display = 'block';
-  document.getElementById('marktSearchWrap').style.display = 'block';
-  const wrap = document.getElementById('marktTVWidget');
-  if (wrap) wrap.innerHTML = '';
-  mktCurrentTicker = null;
-}
-
-async function openDetail(ticker) {
-  mktCurrentTicker = ticker;
-  // US10Y is enkel zinvol op langere termijn — forceer 1J en verberg andere knoppen
-  const forceYear = ticker.src === 'US10Y';
-  mktCurrentPeriod = forceYear ? '1year' : '1day';
-  showDetailPanel();
-  document.getElementById('marktDetailName').textContent   = ticker.name;
-  document.getElementById('marktDetailSymbol').textContent = ticker.symbol;
-  document.getElementById('marktDetailPrice').textContent  = '…';
-  document.getElementById('marktDetailChange').textContent = '';
-  document.getElementById('marktDetailChange').className   = 'markt-detail-change neu';
-  document.getElementById('marktStatsRow').innerHTML       = '';
-  document.querySelectorAll('.markt-period').forEach(b => {
-    if (forceYear) {
-      b.classList.toggle('active', b.dataset.period === '1year');
-      b.style.display = b.dataset.period === '1year' ? '' : 'none';
-    } else {
-      b.classList.toggle('active', b.dataset.period === '1day');
-      b.style.display = '';
-    }
-  });
-  document.getElementById('marktCustomDates').style.display = 'none';
-  updateWatchlistBtn();
-  loadQuote();
-  buildTVWidget(ticker.tv, mktCurrentPeriod);
-}
-
-function updateWatchlistBtn() {
-  const btn  = document.getElementById('marktWatchlistBtn');
-  const inWl = wlHas(mktCurrentTicker?.symbol);
-  btn.textContent = inWl ? '✓ In watchlist' : '+ Watchlist';
-  btn.className   = `markt-watchlist-btn ${inWl ? 'remove' : 'add'}`;
-}
-
-// ── TradingView widget ────────────────────────────────────────────────────────
-function buildTVWidget(tvSymbol, period, dateFrom, dateTo) {
-  const wrap = document.getElementById('marktTVWidget');
-  if (!wrap) return;
-  wrap.innerHTML = '';
-
-  const cfg  = TV_RANGE[period] || TV_RANGE['1day'];
-  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-  const container = document.createElement('div');
-  container.className = 'tradingview-widget-container';
-  container.style.cssText = 'height:100%;width:100%';
-
-  const inner = document.createElement('div');
-  inner.className = 'tradingview-widget-container__widget';
-  inner.style.cssText = 'height:100%;width:100%';
-  container.appendChild(inner);
-
-  const widgetConfig = {
-    autosize:            true,
-    symbol:              tvSymbol,
-    interval:            cfg.interval,
-    timezone:            'Europe/Brussels',
-    theme:               dark ? 'dark' : 'light',
-    style:               '3',
-    locale:              'nl_BE',
-    hide_top_toolbar:    true,
-    hide_legend:         true,
-    hide_side_toolbar:   true,
-    withdateranges:      false,
-    save_image:          false,
-    allow_symbol_change: false,
-    isTransparent:       true,
-    support_host:        'https://www.tradingview.com',
-  };
-
-  // Gebruik from/to bij aangepaste periode, anders de vooraf ingestelde range
-  if (period === 'custom' && dateFrom && dateTo) {
-    widgetConfig.from = Math.floor(new Date(dateFrom).getTime() / 1000);
-    widgetConfig.to   = Math.floor(new Date(dateTo).getTime() / 1000);
-  } else {
-    widgetConfig.range = cfg.range;
-  }
-
-  const script = document.createElement('script');
-  script.type  = 'text/javascript';
-  script.src   = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-  script.async = true;
-  script.innerHTML = JSON.stringify(widgetConfig);
-
-  container.appendChild(script);
-  wrap.appendChild(container);
-}
-
-async function loadQuote(period) {
-  if (!mktCurrentTicker) return;
-  const chEl = document.getElementById('marktDetailChange');
-  chEl.textContent = '…';
-  chEl.className   = 'markt-detail-change neu';
-  try {
-    const p = period || mktCurrentPeriod;
-    if (p === '1day' || p === 'custom') {
-      // Vandaag (of eigen periode): toon huidige prijs + dagwijziging
-      const q = await mktFetch('quote', { symbol: mktCurrentTicker.src });
-      document.getElementById('marktDetailPrice').textContent = fmtPrice(q.c, mktCurrentTicker);
-      chEl.textContent = fmtPct(q.dp) + ' vandaag';
-      chEl.className   = `markt-detail-change ${pctClass(q.dp)}`;
-    } else {
-      // Andere periodes: haal eerste + laatste koers op via pct endpoint
-      const [q, pctData] = await Promise.all([
-        mktFetch('quote', { symbol: mktCurrentTicker.src }),
-        mktFetch('pct',   { symbol: mktCurrentTicker.src, period: p }),
-      ]);
-      document.getElementById('marktDetailPrice').textContent = fmtPrice(q.c, mktCurrentTicker);
-      if (pctData?.dp != null) {
-        const labels = { '1month':'1M', '6month':'6M', '1year':'1J' };
-        chEl.textContent = fmtPct(pctData.dp) + ' ' + (labels[p] || p);
-        chEl.className   = `markt-detail-change ${pctClass(pctData.dp)}`;
-      } else {
-        chEl.textContent = fmtPct(q.dp) + ' vandaag';
-        chEl.className   = `markt-detail-change ${pctClass(q.dp)}`;
-      }
-    }
-  } catch (e) {
-    document.getElementById('marktDetailPrice').textContent = 'Fout';
-    chEl.textContent = e.message;
-    chEl.className   = 'markt-detail-change neg';
-  }
-}
-
-// ── Events ────────────────────────────────────────────────────────────────────
-document.getElementById('marktBackBtn').addEventListener('click', () => { showListPanel(); renderTickerList(); });
-document.getElementById('marktWatchlistBtn').addEventListener('click', () => {
-  if (!mktCurrentTicker) return;
-  wlHas(mktCurrentTicker.symbol) ? wlRemove(mktCurrentTicker.symbol) : wlAdd(mktCurrentTicker);
-  updateWatchlistBtn();
-});
-document.getElementById('marktSearchBtn').addEventListener('click', mktDoSearch);
-document.getElementById('marktSearchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') mktDoSearch();
-});
-document.getElementById('marktSearchInput').addEventListener('input', () => {
-  document.getElementById('marktSearchError').style.display = 'none';
-});
-document.getElementById('marktTickerList').addEventListener('click', e => {
-  const row = e.target.closest('.markt-ticker-row');
-  if (!row || row.classList.contains('markt-search-result')) return;
-  const all    = [...PRESET_TICKERS, ...customLoad()];
-  const ticker = all.find(t => t.symbol === row.dataset.symbol);
-  if (ticker) openDetail(ticker);
-});
-document.getElementById('marktPeriodRow').addEventListener('click', e => {
-  const btn = e.target.closest('.markt-period');
-  if (!btn) return;
-  const period = btn.dataset.period;
-  document.querySelectorAll('.markt-period').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  if (period === 'custom') {
-    document.getElementById('marktCustomDates').style.display = 'flex';
-    return;
-  }
-  document.getElementById('marktCustomDates').style.display = 'none';
-  mktCurrentPeriod = period;
-  if (mktCurrentTicker) {
-    buildTVWidget(mktCurrentTicker.tv, mktCurrentPeriod);
-    loadQuote(mktCurrentPeriod);
-  }
-});
-document.getElementById('marktDateApply').addEventListener('click', () => {
-  if (!mktCurrentTicker) return;
-  const from = document.getElementById('marktDateFrom').value;
-  const to   = document.getElementById('marktDateTo').value;
-  // Bouw widget met aangepast bereik; gebruik '1year' als fallback wanneer datums ontbreken
-  const period = (from && to) ? 'custom' : '1year';
-  buildTVWidget(mktCurrentTicker.tv, period, from, to);
+  ptrActive = false; ptrTriggered = false;
 });
 
 // ── TAB SWIPE ─────────────────────────────────────────────────────────────────
-const TAB_ORDER = ['alles', 'binnenland', 'buitenland', 'politiek', 'economie', 'markt', 'opgeslagen'];
+const TAB_ORDER = ['alles', 'binnenland', 'buitenland', 'economie', 'politiek', 'opgeslagen'];
 let swipeTabStartX = 0, swipeTabStartY = 0, swipeTabActive = false;
 
 document.getElementById('feedContainer').addEventListener('touchstart', e => {
@@ -2334,56 +1134,37 @@ document.getElementById('feedContainer').addEventListener('touchend', e => {
   swipeTabActive = false;
   const dx = e.changedTouches[0].clientX - swipeTabStartX;
   const dy = e.changedTouches[0].clientY - swipeTabStartY;
-  // Alleen horizontale swipes van >60px met beperkte verticale beweging
   if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
   const currentIdx = TAB_ORDER.indexOf(activeTab);
-  const nextIdx    = dx < 0
+  const nextIdx = dx < 0
     ? Math.min(currentIdx + 1, TAB_ORDER.length - 1)
     : Math.max(currentIdx - 1, 0);
   if (nextIdx === currentIdx) return;
-  const nextTab = TAB_ORDER[nextIdx];
-  // Activeer de tab alsof de gebruiker erop klikt
-  document.querySelector(`[data-tab="${nextTab}"]`)?.click();
+  document.querySelector(`[data-tab="${TAB_ORDER[nextIdx]}"]`)?.click();
 }, { passive: true });
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────────
 document.getElementById('catTabs').addEventListener('click', e => {
   const b = e.target.closest('.tab');
   if (!b) return;
-  const tab          = b.dataset.tab;
-  const marktPanel   = document.getElementById('marktPanel');
-  const opgsPanel    = document.getElementById('opgeslagenPanel');
-  const feed         = document.getElementById('feedContainer');
-  const srcRow       = document.querySelector('.source-row-wrap');
+  const tab        = b.dataset.tab;
+  const opgsPanel  = document.getElementById('opgeslagenPanel');
+  const feed       = document.getElementById('feedContainer');
+  const srcRow     = document.querySelector('.source-row-wrap');
 
   document.querySelectorAll('#catTabs .tab').forEach(t => t.classList.remove('active'));
   b.classList.add('active');
 
-  // Reset alle panels
-  marktPanel.style.display = 'none';
   opgsPanel.classList.remove('visible');
   feed.style.display = 'block';
   if (srcRow) srcRow.style.display = '';
 
-  if (tab === 'markt') {
-    marktPanel.style.display = 'block';
-    feed.style.display = 'none';
-    if (srcRow) srcRow.style.display = 'none';
-    if (!mktInited) {
-      mktInited = true;
-      wlLoad();
-      renderTickerList();
-    }
-    const wrap = document.getElementById('marktTVWidget');
-    if (wrap) wrap.innerHTML = '';
-  } else if (tab === 'opgeslagen') {
+  if (tab === 'opgeslagen') {
     feed.style.display = 'none';
     if (srcRow) srcRow.style.display = 'none';
     opgsPanel.classList.add('visible');
     renderOpgeslagen();
   } else {
-    const wrap = document.getElementById('marktTVWidget');
-    if (wrap) wrap.innerHTML = '';
     activeTab = tab;
     render();
   }
@@ -2391,7 +1172,6 @@ document.getElementById('catTabs').addEventListener('click', e => {
 
 // ── OPGESLAGEN PANEL klikken ───────────────────────────────────────────────────
 document.getElementById('opgeslagenPanel').addEventListener('click', e => {
-  // Bookmark-knop verwijder
   const bmBtn = e.target.closest('.bm-btn[data-bm-link]');
   if (bmBtn) {
     e.stopPropagation();
@@ -2400,7 +1180,6 @@ document.getElementById('opgeslagenPanel').addEventListener('click', e => {
     const idx2 = list.findIndex(a => a.link === link);
     if (idx2 >= 0) { list.splice(idx2, 1); localStorage.setItem(BMARK_KEY, JSON.stringify(list)); }
     renderOpgeslagen();
-    // Update ook bookmark-knop in feed als artikel zichtbaar is
     document.querySelectorAll(`.bm-btn[data-bm-idx]`).forEach(btn => {
       const art = allArticles[parseInt(btn.dataset.bmIdx)];
       if (art && art.link === link) {
@@ -2411,7 +1190,6 @@ document.getElementById('opgeslagenPanel').addEventListener('click', e => {
     });
     return;
   }
-  // Kaart klikken
   const card = e.target.closest('[data-bm-link]');
   if (!card || card.classList.contains('bm-btn')) return;
   const link = card.dataset.bmLink;
@@ -2426,6 +1204,48 @@ document.getElementById('opgeslagenHeaderBtn').addEventListener('click', e => {
   document.querySelector('[data-tab="opgeslagen"]')?.click();
 });
 
+// ── POPUP ─────────────────────────────────────────────────────────────────────
+let popupCurrentArt = null;
+
+function openPopup(art) {
+  popupCurrentArt = art;
+  seenMark(seenKey(art));
+  document.querySelectorAll(`[data-idx="${allArticles.indexOf(art)}"]`).forEach(el => el.classList.add('seen'));
+
+  const clean = (art.desc || '').replace(/<[^>]*>/g, '').trim();
+  document.getElementById('popupTitle').textContent = art.title;
+  document.getElementById('popupDesc').textContent  = clean || 'Geen beschrijving beschikbaar.';
+  document.getElementById('popupBtn').href          = art.link;
+
+  const saved = bmHas(art);
+  const popupBm = document.getElementById('popupBmBtn');
+  popupBm.classList.toggle('saved', saved);
+  popupBm.querySelector('.bm-add-icon').style.display    = saved ? 'none' : '';
+  popupBm.querySelector('.bm-remove-icon').style.display = saved ? '' : 'none';
+
+  document.getElementById('popupOverlay').classList.add('open');
+  document.getElementById('popupSheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePopup() {
+  document.getElementById('popupOverlay').classList.remove('open');
+  document.getElementById('popupSheet').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('popupOverlay').addEventListener('click', closePopup);
+document.getElementById('popupSheet').addEventListener('click', e => e.stopPropagation());
+document.getElementById('popupClose').addEventListener('click', e => { e.stopPropagation(); closePopup(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopup(); });
+
+let touchStartY = 0;
+const sheet = document.getElementById('popupSheet');
+sheet.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+sheet.addEventListener('touchend', e => {
+  if (e.changedTouches[0].clientY - touchStartY > 60) closePopup();
+}, { passive: true });
+
 // ── POPUP bookmark knop ────────────────────────────────────────────────────────
 document.getElementById('popupBmBtn').addEventListener('click', e => {
   e.stopPropagation();
@@ -2433,9 +1253,8 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
   const added = bmToggle(popupCurrentArt);
   const btn = document.getElementById('popupBmBtn');
   btn.classList.toggle('saved', added);
-  btn.querySelector('.bm-add-icon').style.display = added ? 'none' : '';
+  btn.querySelector('.bm-add-icon').style.display    = added ? 'none' : '';
   btn.querySelector('.bm-remove-icon').style.display = added ? '' : 'none';
-  // Update kaart in feed
   const idx = allArticles.indexOf(popupCurrentArt);
   if (idx >= 0) {
     const feedBtn = document.querySelector(`.bm-btn[data-bm-idx="${idx}"]`);
@@ -2447,7 +1266,7 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
   }
 });
 
-
+init();
 </script>
 
 <!-- ── DESTEM PANEEL ── -->
@@ -2463,7 +1282,6 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
     <button class="destem-generate-btn" id="destemGenerateBtn" title="Genereer nieuwe briefing">&#x21bb;</button>
   </div>
 
-  <!-- Audiospeler -->
   <div class="destem-player">
     <div class="destem-status" id="destemStatus">
       <div>
@@ -2498,7 +1316,6 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
     </div>
   </div>
 
-  <!-- Tab-balk: Verhalen / Script -->
   <div class="destem-expand-row" id="destemExpandRow">
     <div style="display:flex;gap:16px">
       <button class="destem-expand-tab active" data-panel="stories">5 verhalen</button>
@@ -2506,22 +1323,16 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
     </div>
   </div>
 
-  <!-- Verhalen-lijst -->
   <div class="destem-stories" id="destemStories">
     <div id="destemStoriesList"></div>
   </div>
 
-  <!-- Script tekst -->
   <div class="destem-script" id="destemScript"></div>
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════════════════════════════
-// DESTEM — Audio briefing (v2: verhalen, stemkeuze)
-// ══════════════════════════════════════════════════════════════════════════════
-
+// ── DESTEM ────────────────────────────────────────────────────────────────────
 (function() {
-  // ── DOM refs ──────────────────────────────────────────────────────────────
   const btn           = document.getElementById('destemBtn');
   const overlay       = document.getElementById('destemOverlay');
   const sheet         = document.getElementById('destemSheet');
@@ -2544,32 +1355,23 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
   const storiesList   = document.getElementById('destemStoriesList');
   const expandRow     = document.getElementById('destemExpandRow');
   const dateLabel     = document.getElementById('destemDateLabel');
+  const generateBtn   = document.getElementById('destemGenerateBtn');
 
-  // ── State ─────────────────────────────────────────────────────────────────
-  let audio        = null;
-  let loaded       = false;
-  let loading      = false;
-  let rafId        = null;
-  let activePanel  = 'stories'; // 'stories' | 'script'
-  const activeVoice  = 'Aoede';
-  let currentMeta  = null;
+  let audio = null, loaded = false, loading = false, rafId = null, activePanel = 'stories';
+  const activeVoice = 'Aoede';
 
-  // ── Open / Sluit ──────────────────────────────────────────────────────────
   function openSheet() {
     overlay.classList.add('open');
     sheet.classList.add('open');
     document.body.style.overflow = 'hidden';
     if (!loaded && !loading) loadBriefing();
   }
-
   function closeSheet() {
     overlay.classList.remove('open');
     sheet.classList.remove('open');
     document.body.style.overflow = '';
     btn.classList.remove('playing');
   }
-
-  const generateBtn = document.getElementById('destemGenerateBtn');
 
   btn.addEventListener('click', openSheet);
   overlay.addEventListener('click', closeSheet);
@@ -2579,20 +1381,17 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
   generateBtn.addEventListener('click', () => {
     generateBtn.classList.add('spinning');
     generateBriefing(activeVoice);
-    // Stop animatie zodra loading klaar is (poll)
     const stopSpin = setInterval(() => {
       if (!loading) { generateBtn.classList.remove('spinning'); clearInterval(stopSpin); }
     }, 500);
   });
 
-  // Swipe-down sluiten
   let _swipeY = 0;
   sheet.addEventListener('touchstart', e => { _swipeY = e.touches[0].clientY; }, { passive: true });
   sheet.addEventListener('touchend',   e => {
     if (e.changedTouches[0].clientY - _swipeY > 70) closeSheet();
   }, { passive: true });
 
-  // ── Tab-balk: Verhalen / Script ───────────────────────────────────────────
   document.getElementById('destemExpandRow').addEventListener('click', e => {
     const tab = e.target.closest('[data-panel]');
     if (!tab) return;
@@ -2603,51 +1402,34 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
     scriptDiv.classList.toggle('visible',  activePanel === 'script');
   });
 
-  // ── Pas metadata toe op de UI (gedeeld door loadBriefing en generateBriefing)
   function applyMeta(data) {
-    currentMeta = data;
-
     const d = new Date(data.date);
     dateLabel.textContent = d.toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' });
-
-    if (Array.isArray(data.stories) && data.stories.length) {
-      renderStories(data.stories);
-    } else {
-      storiesList.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);padding:8px 0">Geen verhalenlijst beschikbaar.</p>';
-    }
-
+    if (Array.isArray(data.stories) && data.stories.length) renderStories(data.stories);
+    else storiesList.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);padding:8px 0">Geen verhalenlijst beschikbaar.</p>';
     if (data.script) scriptDiv.textContent = data.script;
-
     expandRow.classList.add('visible');
     storiesDiv.classList.add('visible');
     scriptDiv.classList.remove('visible');
 
     audio = new Audio(data.audioUrl);
     audio.preload = 'auto';
-
     audio.addEventListener('loadedmetadata', () => {
       timeTot.textContent        = fmt(audio.duration);
       statusDiv.style.display    = 'none';
       controls.style.display     = 'flex';
       progressWrap.style.display = 'block';
       timesEl.style.display      = 'flex';
-      loaded  = true;
-      loading = false;
+      loaded = true; loading = false;
     });
-
     audio.addEventListener('ended', () => {
       playBtn.classList.remove('playing');
       btn.classList.remove('playing');
       cancelAnimationFrame(rafId);
     });
-
-    audio.addEventListener('error', () => {
-      setStatus('Audio kon niet worden afgespeeld.', false);
-      loading = false;
-    });
+    audio.addEventListener('error', () => { setStatus('Audio kon niet worden afgespeeld.', false); loading = false; });
   }
 
-  // ── Laad bestaande briefing van blob ──────────────────────────────────────
   async function loadBriefing() {
     loading = true;
     setStatus('Briefing laden…', true);
@@ -2658,21 +1440,14 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
       applyMeta(data);
     } catch (err) {
       const isNotReady = err.message.includes('404') || err.message.includes('Nog geen') || err.message.includes('not found');
-      setStatus(
-        isNotReady
-          ? 'De ochtendbriefing is nog niet klaar. Kom na 06:00 terug.'
-          : 'Kon briefing niet laden: ' + err.message,
-        false
-      );
+      setStatus(isNotReady ? 'De ochtendbriefing is nog niet klaar. Kom na 06:00 terug.' : 'Kon briefing niet laden: ' + err.message, false);
       loading = false;
     }
   }
 
-  // ── Genereer nieuwe briefing via SSE met live voortgang ───────────────────
   function generateBriefing(voiceParam) {
     if (loading) return;
-    loading = true;
-    loaded  = false;
+    loading = true; loaded = false;
     if (audio) { audio.pause(); audio = null; }
     playBtn.classList.remove('playing');
     btn.classList.remove('playing');
@@ -2683,11 +1458,8 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
 
     es.addEventListener('status', e => {
       const d = JSON.parse(e.data);
-      const stepLabel = d.total ? ' (' + d.step + '/' + d.total + ')' : '';
-      setStatus(d.message + stepLabel, true);
+      setStatus(d.message + (d.total ? ' (' + d.step + '/' + d.total + ')' : ''), true);
     });
-
-    // Verhalen arriveren al vóór de audio klaar is
     es.addEventListener('stories', e => {
       const d = JSON.parse(e.data);
       if (Array.isArray(d.stories) && d.stories.length) {
@@ -2697,13 +1469,10 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
         scriptDiv.classList.remove('visible');
       }
     });
-
     es.addEventListener('done', e => {
       es.close();
-      const data = JSON.parse(e.data);
-      applyMeta(data);
+      applyMeta(JSON.parse(e.data));
     });
-
     es.addEventListener('error', e => {
       es.close();
       let msg = 'Generatie mislukt';
@@ -2711,98 +1480,12 @@ document.getElementById('popupBmBtn').addEventListener('click', e => {
       setStatus('⚠ ' + msg, false);
       loading = false;
     });
-
     es.onerror = () => {
-      if (!loaded) {
-        es.close();
-        setStatus('Verbinding verbroken. Probeer opnieuw.', false);
-        loading = false;
-      }
+      if (!loaded) { es.close(); setStatus('Verbinding verbroken. Probeer opnieuw.', false); loading = false; }
     };
   }
 
-  // ── Verhalen renderen ─────────────────────────────────────────────────────
   const SOURCE_LABELS = { detijd:'De Tijd', standaard:'De Standaard', hln:'HLN', politico:'Politico', 'politico-opinion':'Politico Opinion' };
 
-  function renderStories(stories) {
-    const sorted = [...stories].sort((a, b) => (a.rank || 99) - (b.rank || 99));
-    storiesList.innerHTML = sorted.map(s => {
-      const src   = SOURCE_LABELS[s.source] || s.source || '';
-      const rank1 = s.rank === 1 ? ' rank-1' : '';
-      return `
-        <div class="destem-story-card${rank1}">
-          <div class="destem-story-rank">${s.rank}</div>
-          <div class="destem-story-body">
-            <div class="destem-story-title">${esc(s.title)}</div>
-            <div class="destem-story-summary">${esc(s.summary)}</div>
-            ${src ? `<div class="destem-story-source">${esc(src)}</div>` : ''}
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  function esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  // ── Afspelen / pauzeren ───────────────────────────────────────────────────
-  playBtn.addEventListener('click', () => {
-    if (!audio) return;
-    if (audio.paused) {
-      audio.play();
-      playBtn.classList.add('playing');
-      btn.classList.add('playing');
-      rafId = requestAnimationFrame(tick);
-    } else {
-      audio.pause();
-      playBtn.classList.remove('playing');
-      btn.classList.remove('playing');
-      cancelAnimationFrame(rafId);
-    }
-  });
-
-  rewindBtn.addEventListener('click',  () => { if (audio) audio.currentTime = Math.max(0, audio.currentTime - 15); });
-  forwardBtn.addEventListener('click', () => { if (audio) audio.currentTime = Math.min(audio.duration, audio.currentTime + 15); });
-
-  // ── Voortgangsbalk ────────────────────────────────────────────────────────
-  function tick() {
-    if (!audio || audio.paused) return;
-    const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
-    progressFill.style.width = pct + '%';
-    progressThumb.style.left = pct + '%';
-    timeCur.textContent      = fmt(audio.currentTime);
-    rafId = requestAnimationFrame(tick);
-  }
-
-  progressWrap.addEventListener('click', e => {
-    if (!audio || !audio.duration) return;
-    const rect = progressWrap.getBoundingClientRect();
-    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audio.currentTime        = pct * audio.duration;
-    progressFill.style.width = (pct * 100) + '%';
-    progressThumb.style.left = (pct * 100) + '%';
-  });
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  function fmt(s) {
-    if (!s || isNaN(s)) return '0:00';
-    const m = Math.floor(s / 60);
-    return m + ':' + String(Math.floor(s % 60)).padStart(2, '0');
-  }
-
-  function setStatus(msg, isLoading) {
-    statusDiv.style.display    = 'flex';
-    controls.style.display     = 'none';
-    progressWrap.style.display = 'none';
-    timesEl.style.display      = 'none';
-    expandRow.classList.remove('visible');
-    storiesDiv.classList.remove('visible');
-    scriptDiv.classList.remove('visible');
-    spinner.style.display      = isLoading ? 'block' : 'none';
-    statusText.textContent     = msg;
-  }
-})();
-</script>
-
-</body>
-</html>
+  function _esc(s) {
+    return St
