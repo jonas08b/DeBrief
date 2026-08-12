@@ -80,10 +80,10 @@
   }
   .logo span { color: var(--accent); }
 
-  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .header-actions { display: flex; align-items: center; gap: 4px; }
 
   .header-icon-btn {
-    width: 38px; height: 38px; border-radius: 50%;
+    width: 30px; height: 30px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: none; border: none; cursor: pointer;
     color: var(--ink-muted); transition: color .15s;
@@ -92,7 +92,7 @@
   }
   .header-icon-btn:hover { color: var(--ink); }
   .header-icon-btn svg {
-    width: 22px; height: 22px; stroke: currentColor; fill: none;
+    width: 18px; height: 18px; stroke: currentColor; fill: none;
     stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
   }
   .header-date {
@@ -103,31 +103,25 @@
 
   /* ── SOURCE ROW ── */
   .source-row-wrap {
-    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    overflow: visible;
     padding: 0 0 14px;
   }
-  .source-row-wrap::-webkit-scrollbar { display: none; }
-  .source-row { display: flex; gap: 8px; width: max-content; padding: 0 0px; }
-
+  .source-row {
+    display: flex; gap: 6px;
+    /* Verdeel 4 chips gelijkmatig over de volledige breedte */
+    width: 100%;
+  }
   .source-chip {
-    font-size: 13px; font-weight: 500;
-    padding: 7px 16px; border-radius: 20px;
+    flex: 1;
+    font-size: 12px; font-weight: 500;
+    padding: 6px 4px; border-radius: 20px;
     border: 1.5px solid #333; background: transparent; color: #999;
     cursor: pointer; white-space: nowrap; transition: all .15s;
     -webkit-tap-highlight-color: transparent;
+    text-align: center;
   }
-  /* Actieve chip: witte achtergrond, zwarte tekst — exact zoals de foto */
   .source-chip.active {
     background: #ffffff; border-color: #ffffff; color: #000000; font-weight: 600;
-  }
-
-  /* "Meer" chip met pijltje */
-  .source-chip-meer {
-    display: flex; align-items: center; gap: 4px;
-  }
-  .source-chip-meer svg {
-    width: 12px; height: 12px; stroke: currentColor; fill: none;
-    stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
   }
 
   /* ── FEED ── */
@@ -611,7 +605,6 @@
       <button class="source-chip" data-source="De Tijd">De Tijd</button>
       <button class="source-chip" data-source="De Standaard">De Standaard</button>
       <button class="source-chip" data-source="HLN">HLN</button>
-      <button class="source-chip source-chip-meer" data-source="meer">Meer <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
   </div>
 </div>
@@ -1045,7 +1038,7 @@ document.getElementById('headerBar').addEventListener('click', () => {
 
 document.getElementById('sourceRow').addEventListener('click', e => {
   const c = e.target.closest('.source-chip');
-  if (!c || c.dataset.source === 'meer') return;
+  if (!c) return;
   document.querySelectorAll('.source-chip').forEach(x => x.classList.remove('active'));
   c.classList.add('active');
   activeSource = c.dataset.source;
